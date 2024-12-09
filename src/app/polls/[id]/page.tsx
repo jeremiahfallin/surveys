@@ -26,20 +26,20 @@ import { formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
 import { VotingFormat } from "@/components/CreatePollForm";
 
-interface Vote {
+interface FirestoreVote {
   userId: string;
-  timestamp: Date;
+  timestamp: Timestamp;
 }
 
-interface RankedVote extends Vote {
+interface FirestoreRankedVote extends FirestoreVote {
   rankings: number[];
 }
 
-interface PluralityVote extends Vote {
+interface FirestorePluralityVote extends FirestoreVote {
   selections: number[];
 }
 
-interface PairwiseVote extends Vote {
+interface FirestorePairwiseVote extends FirestoreVote {
   winner: number;
   loser: number;
 }
@@ -123,7 +123,8 @@ function initializeStats(
   system: RatingSystem,
   optionCount: number
 ): PairwiseStats {
-  const stats: Record<number, any> = {};
+  const stats: Record<number, EloStats | BradleyTerryStats | TrueSkillStats> =
+    {};
 
   for (let i = 0; i < optionCount; i++) {
     switch (system) {
@@ -397,18 +398,24 @@ export default function PollPage({
           createdAt: data.createdAt?.toDate() || new Date(),
           createdBy: data.createdBy,
           singleVoteUsers: data.singleVoteUsers || [],
-          rankedVotes: (data.rankedVotes || []).map((vote: any) => ({
-            ...vote,
-            timestamp: vote.timestamp?.toDate() || new Date(),
-          })),
-          pluralityVotes: (data.pluralityVotes || []).map((vote: any) => ({
-            ...vote,
-            timestamp: vote.timestamp?.toDate() || new Date(),
-          })),
-          pairwiseVotes: (data.pairwiseVotes || []).map((vote: any) => ({
-            ...vote,
-            timestamp: vote.timestamp?.toDate() || new Date(),
-          })),
+          rankedVotes: (data.rankedVotes || []).map(
+            (vote: FirestoreRankedVote) => ({
+              ...vote,
+              timestamp: vote.timestamp.toDate(),
+            })
+          ),
+          pluralityVotes: (data.pluralityVotes || []).map(
+            (vote: FirestorePluralityVote) => ({
+              ...vote,
+              timestamp: vote.timestamp.toDate(),
+            })
+          ),
+          pairwiseVotes: (data.pairwiseVotes || []).map(
+            (vote: FirestorePairwiseVote) => ({
+              ...vote,
+              timestamp: vote.timestamp.toDate(),
+            })
+          ),
           pairwiseStats: data.pairwiseStats || {},
           ratingSystem: data.ratingSystem,
         });
@@ -579,18 +586,24 @@ export default function PollPage({
         ...updatedData,
         // Convert timestamps back to Date objects
         createdAt: updatedData.createdAt?.toDate() || prev!.createdAt,
-        rankedVotes: (updatedData.rankedVotes || []).map((vote: any) => ({
-          ...vote,
-          timestamp: vote.timestamp?.toDate() || new Date(),
-        })),
-        pluralityVotes: (updatedData.pluralityVotes || []).map((vote: any) => ({
-          ...vote,
-          timestamp: vote.timestamp?.toDate() || new Date(),
-        })),
-        pairwiseVotes: (updatedData.pairwiseVotes || []).map((vote: any) => ({
-          ...vote,
-          timestamp: vote.timestamp?.toDate() || new Date(),
-        })),
+        rankedVotes: (updatedData.rankedVotes || []).map(
+          (vote: FirestoreRankedVote) => ({
+            ...vote,
+            timestamp: vote.timestamp?.toDate() || new Date(),
+          })
+        ),
+        pluralityVotes: (updatedData.pluralityVotes || []).map(
+          (vote: FirestorePluralityVote) => ({
+            ...vote,
+            timestamp: vote.timestamp?.toDate() || new Date(),
+          })
+        ),
+        pairwiseVotes: (updatedData.pairwiseVotes || []).map(
+          (vote: FirestorePairwiseVote) => ({
+            ...vote,
+            timestamp: vote.timestamp?.toDate() || new Date(),
+          })
+        ),
         pairwiseStats: updatedData.pairwiseStats || {},
       }));
 

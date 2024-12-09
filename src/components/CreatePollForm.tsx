@@ -1,7 +1,12 @@
 "use client";
 import { useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  Timestamp,
+} from "firebase/firestore";
 import { useAuth } from "./AuthProvider";
 import { useRouter } from "next/navigation";
 import {
@@ -17,7 +22,12 @@ import { ImageUpload } from "./ImageUpload";
 
 export type VotingFormat = "single" | "ranked" | "plurality" | "pairwise";
 
-const VOTING_FORMAT_INFO = {
+interface VotingFormatInfo {
+  label: string;
+  description: string;
+}
+
+const VOTING_FORMAT_INFO: Record<VotingFormat, VotingFormatInfo> = {
   single: {
     label: "Single Vote",
     description: "Each voter can select one option only",
@@ -39,6 +49,49 @@ const VOTING_FORMAT_INFO = {
 interface PollOption {
   text: string;
   imageUrl?: string;
+}
+
+interface BradleyTerryStats {
+  mu: number;
+  sigma: number;
+  beta: number;
+  gamma: number;
+  wins: number;
+  comparisons: number;
+  timestamp: Timestamp;
+}
+
+interface RankedVote {
+  userId: string;
+  rankings: number[];
+  timestamp: Timestamp;
+}
+
+interface PluralityVote {
+  userId: string;
+  selections: number[];
+  timestamp: Timestamp;
+}
+
+interface PollData {
+  title: string;
+  description: string;
+  options: Array<{
+    text: string;
+    votes: number;
+    imageUrl?: string;
+  }>;
+  votingFormat: VotingFormat;
+  createdBy: string;
+  createdAt: Timestamp;
+  active: boolean;
+  singleVoteUsers?: string[];
+  rankedVotes?: RankedVote[];
+  pluralityVotes?: PluralityVote[];
+  pairwiseStats?: {
+    system: string;
+    stats: Record<string, BradleyTerryStats>;
+  };
 }
 
 export function CreatePollForm() {
@@ -82,7 +135,6 @@ export function CreatePollForm() {
       return;
     }
 
-    // Ensure minimum options for different voting formats
     const minOptions = votingFormat === "pairwise" ? 3 : 2;
     if (options.length < minOptions) {
       alert(
@@ -94,7 +146,7 @@ export function CreatePollForm() {
     setIsSubmitting(true);
 
     try {
-      const pollData = {
+      const pollData: PollData = {
         title,
         description,
         options: options.map((option) => ({
@@ -106,15 +158,13 @@ export function CreatePollForm() {
         createdBy: user.uid,
         createdAt: serverTimestamp(),
         active: true,
-        // Format-specific initial data
         ...(votingFormat === "single" && { singleVoteUsers: [] }),
         ...(votingFormat === "ranked" && { rankedVotes: [] }),
         ...(votingFormat === "plurality" && { pluralityVotes: [] }),
         ...(votingFormat === "pairwise" && {
-          pairwiseVotes: [],
           pairwiseStats: {
             system: "bradley-terry",
-            stats: options.reduce(
+            stats: options.reduce<Record<string, BradleyTerryStats>>(
               (acc, _, i) => ({
                 ...acc,
                 [i]: {
@@ -135,9 +185,13 @@ export function CreatePollForm() {
 
       const pollRef = await addDoc(collection(db, "polls"), pollData);
       router.push(`/polls/${pollRef.id}`);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error creating poll:", error);
-      alert("Failed to create poll. Please try again.");
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to create poll. Please try again.";
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

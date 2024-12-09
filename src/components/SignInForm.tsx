@@ -30,11 +30,12 @@ export function SignInForm() {
         await signInWithEmailAndPassword(auth, email, password);
       }
       router.push("/polls");
-    } catch (error: any) {
-      setError(
-        error.message ||
-          "An error occurred during authentication. Please try again."
-      );
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "An error occurred during authentication. Please try again.";
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -48,11 +49,12 @@ export function SignInForm() {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       router.push("/polls");
-    } catch (error: any) {
-      setError(
-        error.message ||
-          "An error occurred during Google sign-in. Please try again."
-      );
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "An error occurred during authentication. Please try again.";
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }

@@ -1,8 +1,42 @@
 "use client";
-import { Card, Heading, Text, Box, Flex, Button } from "@radix-ui/themes";
+import { Card, Heading, Text, Box, Flex } from "@radix-ui/themes";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { VotingFormat } from "@/components/CreatePollForm";
+import { Timestamp } from "firebase/firestore";
+
+interface BaseStats {
+  wins: number;
+  comparisons: number;
+  timestamp: Timestamp;
+}
+
+interface EloStats extends BaseStats {
+  rating: number;
+  kFactor: number;
+}
+
+interface BradleyTerryStats extends BaseStats {
+  mu: number;
+  sigma: number;
+  beta: number;
+  gamma: number;
+}
+
+interface TrueSkillStats extends BaseStats {
+  mu: number;
+  sigma: number;
+  beta: number;
+  tau: number;
+  drawProbability: number;
+}
+
+type RatingStats = EloStats | BradleyTerryStats | TrueSkillStats;
+
+interface PairwiseStats {
+  system: string;
+  stats: Record<string, RatingStats>;
+}
 
 interface PollOption {
   text: string;
@@ -13,18 +47,13 @@ interface PollOption {
 interface RankedVote {
   userId: string;
   rankings: number[];
-  timestamp: Date;
+  timestamp: Timestamp;
 }
 
 interface PluralityVote {
   userId: string;
   selections: number[];
-  timestamp: Date;
-}
-
-interface PairwiseStats {
-  system: string;
-  stats: Record<number, any>;
+  timestamp: Timestamp;
 }
 
 interface PollCardProps {
@@ -40,15 +69,20 @@ interface PollCardProps {
   singleVoteUsers?: string[];
 }
 
-function OptionDisplay({
-  option,
-  value,
-  maxValue,
-}: {
+interface OptionDisplayProps {
   option: PollOption;
   value: number;
   maxValue: number;
-}) {
+}
+
+function getRating(stats: RatingStats): number {
+  if ("rating" in stats) {
+    return stats.rating;
+  }
+  return stats.mu;
+}
+
+function OptionDisplay({ option, value, maxValue }: OptionDisplayProps) {
   return (
     <Box>
       <Flex justify="between" align="center" gap="2">
@@ -239,12 +273,12 @@ export function PollCard({
       }
 
       case "pairwise": {
-        if (!pairwiseStats) return <Text size="2">No comparisons yet</Text>;
+        if (!pairwiseStats) return null;
 
         const ratings = Object.entries(pairwiseStats.stats)
           .map(([index, stats]) => ({
             text: options[parseInt(index)].text,
-            rating: "mu" in stats ? stats.mu : stats.rating,
+            rating: getRating(stats),
             comparisons: stats.comparisons,
           }))
           .sort((a, b) => b.rating - a.rating);
