@@ -4,6 +4,27 @@ import { db } from "@/lib/firebase";
 import { collection, query, orderBy, getDocs } from "firebase/firestore";
 import { PollCard } from "@/components/PollCard";
 import { Box, Grid, Heading, Text } from "@radix-ui/themes";
+import { VotingFormat } from "@/components/CreatePollForm";
+
+interface RankedVote {
+  userId: string;
+  rankings: number[];
+  timestamp: Date;
+}
+
+interface PluralityVote {
+  userId: string;
+  selections: number[];
+  timestamp: Date;
+}
+
+interface PairwiseStats {
+  [key: number]: {
+    rating: number;
+    rd: number;
+    vol: number;
+  };
+}
 
 interface Poll {
   id: string;
@@ -14,6 +35,11 @@ interface Poll {
     votes: number;
   }>;
   createdAt: Date;
+  votingFormat: VotingFormat;
+  rankedVotes?: RankedVote[];
+  pluralityVotes?: PluralityVote[];
+  pairwiseStats?: PairwiseStats;
+  singleVoteUsers?: string[];
 }
 
 export default function PollsPage() {
@@ -38,6 +64,11 @@ export default function PollsPage() {
             description: data.description,
             options: data.options,
             createdAt: data.createdAt?.toDate() || new Date(),
+            votingFormat: data.votingFormat,
+            rankedVotes: data.rankedVotes,
+            pluralityVotes: data.pluralityVotes,
+            pairwiseStats: data.pairwiseStats,
+            singleVoteUsers: data.singleVoteUsers,
           };
         });
 
