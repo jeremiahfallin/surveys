@@ -1,5 +1,5 @@
 "use client";
-import { Card, Heading, Text, Box, Flex } from "@radix-ui/themes";
+import { Card, Heading, Text, Box, Flex, Button } from "@radix-ui/themes";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { VotingFormat } from "@/components/CreatePollForm";
