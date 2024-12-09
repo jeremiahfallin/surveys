@@ -1,7 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, orderBy, getDocs } from "firebase/firestore";
+import {
+  collection,
+  query,
+  orderBy,
+  getDocs,
+  DocumentData,
+} from "firebase/firestore";
 import { PollCard } from "@/components/PollCard";
 import { Box, Grid, Heading, Text } from "@radix-ui/themes";
 import type { PollCardProps as Poll } from "@/components/PollCard";
@@ -29,11 +35,11 @@ export default function PollsPage() {
             options: data.options,
             createdAt: data.createdAt?.toDate() || new Date(),
             votingFormat: data.votingFormat,
-            rankedVotes: data.rankedVotes?.map((vote: any) => ({
+            rankedVotes: data.rankedVotes?.map((vote: DocumentData) => ({
               ...vote,
               timestamp: vote.timestamp,
             })),
-            pluralityVotes: data.pluralityVotes?.map((vote: any) => ({
+            pluralityVotes: data.pluralityVotes?.map((vote: DocumentData) => ({
               ...vote,
               timestamp: vote.timestamp,
             })),
