@@ -56,7 +56,7 @@ interface PluralityVote {
   timestamp: Timestamp;
 }
 
-interface PollCardProps {
+export interface PollCardProps {
   id: string;
   title: string;
   description: string;

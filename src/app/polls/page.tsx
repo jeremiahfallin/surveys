@@ -4,13 +4,7 @@ import { db } from "@/lib/firebase";
 import { collection, query, orderBy, getDocs } from "firebase/firestore";
 import { PollCard } from "@/components/PollCard";
 import { Box, Grid, Heading, Text } from "@radix-ui/themes";
-import { VotingFormat } from "@/components/CreatePollForm";
-import type {
-  RankedVote,
-  PluralityVote,
-  PairwiseStats,
-  PollCardProps as Poll,
-} from "@/components/PollCard";
+import type { PollCardProps as Poll } from "@/components/PollCard";
 
 export default function PollsPage() {
   const [polls, setPolls] = useState<Poll[]>([]);
