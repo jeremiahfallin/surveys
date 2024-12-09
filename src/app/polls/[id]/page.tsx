@@ -44,6 +44,24 @@ interface FirestorePairwiseVote extends FirestoreVote {
   loser: number;
 }
 
+interface Vote {
+  userId: string;
+  timestamp: Date;
+}
+
+interface RankedVote extends Vote {
+  rankings: number[];
+}
+
+interface PluralityVote extends Vote {
+  selections: number[];
+}
+
+interface PairwiseVote extends Vote {
+  winner: number;
+  loser: number;
+}
+
 interface PollOption {
   text: string;
   votes: number | Record<string, number>;
