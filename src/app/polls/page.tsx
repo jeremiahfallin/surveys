@@ -5,42 +5,12 @@ import { collection, query, orderBy, getDocs } from "firebase/firestore";
 import { PollCard } from "@/components/PollCard";
 import { Box, Grid, Heading, Text } from "@radix-ui/themes";
 import { VotingFormat } from "@/components/CreatePollForm";
-
-interface RankedVote {
-  userId: string;
-  rankings: number[];
-  timestamp: Date;
-}
-
-interface PluralityVote {
-  userId: string;
-  selections: number[];
-  timestamp: Date;
-}
-
-interface PairwiseStats {
-  [key: number]: {
-    rating: number;
-    rd: number;
-    vol: number;
-  };
-}
-
-interface Poll {
-  id: string;
-  title: string;
-  description: string;
-  options: Array<{
-    text: string;
-    votes: number;
-  }>;
-  createdAt: Date;
-  votingFormat: VotingFormat;
-  rankedVotes?: RankedVote[];
-  pluralityVotes?: PluralityVote[];
-  pairwiseStats?: PairwiseStats;
-  singleVoteUsers?: string[];
-}
+import type {
+  RankedVote,
+  PluralityVote,
+  PairwiseStats,
+  PollCardProps as Poll,
+} from "@/components/PollCard";
 
 export default function PollsPage() {
   const [polls, setPolls] = useState<Poll[]>([]);
@@ -65,8 +35,14 @@ export default function PollsPage() {
             options: data.options,
             createdAt: data.createdAt?.toDate() || new Date(),
             votingFormat: data.votingFormat,
-            rankedVotes: data.rankedVotes,
-            pluralityVotes: data.pluralityVotes,
+            rankedVotes: data.rankedVotes?.map((vote: any) => ({
+              ...vote,
+              timestamp: vote.timestamp,
+            })),
+            pluralityVotes: data.pluralityVotes?.map((vote: any) => ({
+              ...vote,
+              timestamp: vote.timestamp,
+            })),
             pairwiseStats: data.pairwiseStats,
             singleVoteUsers: data.singleVoteUsers,
           };
