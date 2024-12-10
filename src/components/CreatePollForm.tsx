@@ -83,7 +83,6 @@ interface PollData {
   }>;
   votingFormat: VotingFormat;
   createdBy: string;
-  createdAt: Timestamp;
   active: boolean;
   singleVoteUsers?: string[];
   rankedVotes?: RankedVote[];
@@ -156,7 +155,6 @@ export function CreatePollForm() {
         })),
         votingFormat,
         createdBy: user.uid,
-        createdAt: serverTimestamp(),
         active: true,
         ...(votingFormat === "single" && { singleVoteUsers: [] }),
         ...(votingFormat === "ranked" && { rankedVotes: [] }),
