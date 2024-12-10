@@ -976,7 +976,7 @@ export default function PollPage({
     <Box>
       <Card size="3">
         <Flex direction="column" gap="4">
-          <Box>
+          <Flex direction="column" gap="2">
             <Heading size="8" mb="2">
               {poll.title}
             </Heading>
@@ -991,7 +991,7 @@ export default function PollPage({
                 Your votes: {getUserVoteCount()}
               </Text>
             )}
-          </Box>
+          </Flex>
 
           <Text>{poll.description}</Text>
 
