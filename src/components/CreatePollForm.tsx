@@ -77,11 +77,13 @@ interface PollData {
   title: string;
   description: string;
   options: Array<{
+    id: string;
     text: string;
     votes: number;
     imageUrl?: string;
   }>;
   votingFormat: VotingFormat;
+  createdAt: Timestamp;
   createdBy: string;
   active: boolean;
   singleVoteUsers?: string[];
@@ -148,12 +150,14 @@ export function CreatePollForm() {
       const pollData: PollData = {
         title,
         description,
-        options: options.map((option) => ({
+        options: options.map((option, index) => ({
+          id: `option-${index}`,
           text: option.text,
           votes: 0,
           ...(option.imageUrl && { imageUrl: option.imageUrl }),
         })),
         votingFormat,
+        createdAt: Timestamp.now(),
         createdBy: user.uid,
         active: true,
         ...(votingFormat === "single" && { singleVoteUsers: [] }),
@@ -165,14 +169,14 @@ export function CreatePollForm() {
             stats: options.reduce<Record<string, BradleyTerryStats>>(
               (acc, _, i) => ({
                 ...acc,
-                [i]: {
+                [`option-${i}`]: {
                   mu: 0,
                   sigma: 1.0,
                   beta: 0.5,
                   gamma: 0.1,
                   wins: 0,
                   comparisons: 0,
-                  timestamp: serverTimestamp(),
+                  timestamp: Timestamp.now(),
                 },
               }),
               {}

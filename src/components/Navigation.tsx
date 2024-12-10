@@ -25,7 +25,9 @@ export function Navigation() {
             {user ? (
               <>
                 <Link href="/create-poll">Create Poll</Link>
-                <Button onClick={handleSignOut}>Sign Out</Button>
+                <Link asChild>
+                  <button onClick={handleSignOut}>Sign Out</button>
+                </Link>
               </>
             ) : (
               <Link href="/auth">Sign In</Link>

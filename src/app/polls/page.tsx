@@ -28,7 +28,8 @@ export default function PollsPage() {
         const querySnapshot = await getDocs(pollsQuery);
         const fetchedPolls = querySnapshot.docs.map((doc) => {
           const data = doc.data();
-          return {
+          console.log("Raw poll data:", data);
+          const poll = {
             id: doc.id,
             title: data.title,
             description: data.description,
@@ -37,15 +38,17 @@ export default function PollsPage() {
             votingFormat: data.votingFormat,
             rankedVotes: data.rankedVotes?.map((vote: DocumentData) => ({
               ...vote,
-              timestamp: vote.timestamp,
+              timestamp: vote.timestamp?.toDate() || new Date(),
             })),
             pluralityVotes: data.pluralityVotes?.map((vote: DocumentData) => ({
               ...vote,
-              timestamp: vote.timestamp,
+              timestamp: vote.timestamp?.toDate() || new Date(),
             })),
             pairwiseStats: data.pairwiseStats,
-            singleVoteUsers: data.singleVoteUsers,
+            singleVoteUsers: data.singleVoteUsers || [],
           };
+          console.log("Processed poll:", poll);
+          return poll;
         });
 
         setPolls(fetchedPolls);

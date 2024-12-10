@@ -10,6 +10,7 @@ import {
   increment,
   collection,
   Timestamp,
+  serverTimestamp,
 } from "firebase/firestore";
 import {
   Box,
@@ -21,6 +22,7 @@ import {
   Select,
   Radio,
   Checkbox,
+  Tabs,
 } from "@radix-ui/themes";
 import { formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -50,7 +52,9 @@ interface Vote {
 }
 
 interface RankedVote extends Vote {
-  rankings: number[];
+  userId: string;
+  rankings: Record<string, number>;
+  timestamp: Date;
 }
 
 interface PluralityVote extends Vote {
@@ -63,8 +67,10 @@ interface PairwiseVote extends Vote {
 }
 
 interface PollOption {
+  id: string;
   text: string;
-  votes: number | Record<string, number>;
+  votes: number;
+  imageUrl?: string;
 }
 
 type RatingSystem = "elo" | "bradley-terry" | "trueskill";
@@ -95,10 +101,10 @@ interface TrueSkillStats extends BaseStats {
   draw_prob: number; // Draw probability
 }
 
-type PairwiseStats = {
+interface PairwiseStats {
   system: RatingSystem;
   stats: Record<number, EloStats | BradleyTerryStats | TrueSkillStats>;
-};
+}
 
 interface Poll {
   id: string;
@@ -375,6 +381,75 @@ function getUncertainty(
   return 0; // Elo doesn't have uncertainty
 }
 
+function calculateIRVResults(
+  rankings: RankedVote[],
+  options: Array<{ id: string }>,
+  winnersNeeded: number = 1
+) {
+  if (!rankings.length) return [];
+
+  let eliminated: string[] = [];
+  let winners: Array<{ id: string; round: number; votes: number }> = [];
+  let round = 1;
+
+  while (winners.length < winnersNeeded && eliminated.length < options.length) {
+    const voteCounts = new Map<string, number>();
+    options.forEach((opt) => voteCounts.set(opt.id, 0));
+
+    rankings.forEach((vote) => {
+      // Get all rankings sorted from best (lowest number) to worst
+      const sortedRankings = Object.entries(vote.rankings)
+        .filter(([optId]) => !eliminated.includes(optId))
+        .sort(([, rankA], [, rankB]) => rankA - rankB);
+
+      // Assign vote to the highest-ranked non-eliminated option
+      if (sortedRankings.length > 0) {
+        const [topOptionId] = sortedRankings[0];
+        voteCounts.set(topOptionId, (voteCounts.get(topOptionId) || 0) + 1);
+      }
+    });
+
+    const totalVotes = Array.from(voteCounts.values()).reduce(
+      (sum, count) => sum + count,
+      0
+    );
+    const majority = totalVotes / 2;
+
+    // Find the option with the most votes
+    const remainingVotes = Array.from(voteCounts.entries()).filter(
+      ([id]) => !eliminated.includes(id)
+    );
+    const maxVotes = Math.max(...remainingVotes.map(([, votes]) => votes));
+    const winner = remainingVotes.find(([, votes]) => votes === maxVotes);
+
+    if (
+      maxVotes > majority ||
+      eliminated.length === options.length - winners.length - 1
+    ) {
+      // We have a winner
+      if (winner) {
+        winners.push({
+          id: winner[0],
+          round,
+          votes: maxVotes,
+        });
+        eliminated.push(winner[0]);
+      }
+    } else {
+      // Eliminate the option with the fewest votes
+      const minVotes = Math.min(...remainingVotes.map(([, votes]) => votes));
+      const loser = remainingVotes.find(([, votes]) => votes === minVotes);
+      if (loser) {
+        eliminated.push(loser[0]);
+      }
+    }
+
+    round++;
+  }
+
+  return winners;
+}
+
 export default function PollPage({
   params,
 }: {
@@ -384,22 +459,20 @@ export default function PollPage({
   const [poll, setPoll] = useState<Poll | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedOption, setSelectedOption] = useState<number>(-1);
+  const [selectedOption, setSelectedOption] = useState(-1);
   const [selectedOptions, setSelectedOptions] = useState<number[]>([]);
   const [rankings, setRankings] = useState<number[]>([]);
+  const [isVoting, setIsVoting] = useState(false);
+  const [winnersCount, setWinnersCount] = useState(1);
   const [currentComparison, setCurrentComparison] = useState<
     [number, number] | null
   >(null);
-  const [isVoting, setIsVoting] = useState(false);
   const { user } = useAuth();
-  const router = useRouter();
 
   useEffect(() => {
     async function fetchPoll() {
       try {
-        const pollDoc = await getDoc(
-          doc(collection(db, "polls"), resolvedParams.id)
-        );
+        const pollDoc = await getDoc(doc(db, "polls", resolvedParams.id));
 
         if (!pollDoc.exists()) {
           setError("Poll not found");
@@ -484,20 +557,42 @@ export default function PollPage({
   };
 
   const handleVote = async () => {
-    if (!user) {
-      router.push("/auth");
-      return;
-    }
-
-    if (!poll) return;
+    if (!poll || !user) return;
 
     setIsVoting(true);
-
     try {
-      const pollRef = doc(collection(db, "polls"), resolvedParams.id);
-      const now = new Date();
+      const pollRef = doc(db, "polls", resolvedParams.id);
 
       switch (poll.votingFormat) {
+        case "ranked": {
+          // Validate rankings
+          if (rankings.some((r) => r === -1)) {
+            alert("Please rank all options");
+            return;
+          }
+          if (hasDuplicateRankings(rankings)) {
+            alert("Each option must have a unique ranking");
+            return;
+          }
+
+          // Create rankings map
+          const rankingsMap: Record<string, number> = {};
+          poll.options.forEach((option, index) => {
+            rankingsMap[option.id] = rankings[index];
+          });
+
+          console.log("Submitting rankings:", rankingsMap);
+
+          await updateDoc(pollRef, {
+            rankedVotes: arrayUnion({
+              userId: user.uid,
+              rankings: rankingsMap,
+              timestamp: Timestamp.now(),
+            }),
+          });
+          break;
+        }
+
         case "single":
           if (selectedOption === -1) {
             alert("Please select an option");
@@ -513,24 +608,6 @@ export default function PollPage({
           });
           break;
 
-        case "ranked":
-          if (rankings.some((r) => r === -1)) {
-            alert("Please rank all options");
-            return;
-          }
-          if (hasDuplicateRankings(rankings)) {
-            alert("Each option must have a unique ranking");
-            return;
-          }
-          await updateDoc(pollRef, {
-            rankedVotes: arrayUnion({
-              userId: user.uid,
-              rankings,
-              timestamp: now,
-            }),
-          });
-          break;
-
         case "plurality":
           if (selectedOptions.length === 0) {
             alert("Please select at least one option");
@@ -540,7 +617,7 @@ export default function PollPage({
             pluralityVotes: arrayUnion({
               userId: user.uid,
               selections: selectedOptions,
-              timestamp: now,
+              timestamp: new Date(),
             }),
           });
           break;
@@ -577,7 +654,7 @@ export default function PollPage({
               userId: user.uid,
               winner,
               loser,
-              timestamp: now,
+              timestamp: new Date(),
             }),
             pairwiseStats: {
               system: ratingSystem,
@@ -663,9 +740,9 @@ export default function PollPage({
 
       case "ranked":
         return (
-          <Flex direction="column" gap="3">
+          <Flex direction="column" gap="3" key={poll.id}>
             {poll.options.map((option, index) => (
-              <Box key={index}>
+              <Box key={option.id}>
                 <Flex justify="between" align="center">
                   <Text>{option.text}</Text>
                   <Select.Root
@@ -765,17 +842,21 @@ export default function PollPage({
     if (!poll) return null;
 
     switch (poll.votingFormat) {
-      case "single":
-        return Object.values(poll.options).map((option, index) => {
-          const votes = option.votes as number;
-          const percentage =
-            totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+      case "single": {
+        const totalVotes = poll.options.reduce(
+          (sum, option) => sum + (option.votes || 0),
+          0
+        );
+        return poll.options.map((option: PollOption, index) => {
+          const votes = option.votes || 0;
+          const percentage = totalVotes > 0 ? (votes / totalVotes) * 100 : 0;
           return (
             <Box key={index}>
               <Flex justify="between" mb="2">
                 <Text>{option.text}</Text>
                 <Text>
-                  {votes} votes ({percentage}%)
+                  {votes} vote{votes !== 1 ? "s" : ""} ({Math.round(percentage)}
+                  %)
                 </Text>
               </Flex>
               <Box
@@ -799,41 +880,104 @@ export default function PollPage({
             </Box>
           );
         });
+      }
 
-      case "ranked":
-        const scores = poll.options.map((_, index) => {
-          let score = 0;
-          poll.rankedVotes?.forEach((vote) => {
-            score += poll.options.length - vote.rankings[index];
-          });
-          return { index, score };
-        });
-        scores.sort((a, b) => b.score - a.score);
+      case "ranked": {
+        if (!poll.rankedVotes?.length) return <Text>No votes yet</Text>;
 
-        return scores.map(({ index, score }) => (
-          <Box key={index}>
-            <Flex justify="between" mb="2">
-              <Text>{poll.options[index].text}</Text>
-              <Text>Score: {score}</Text>
+        const winners = calculateIRVResults(
+          poll.rankedVotes,
+          poll.options,
+          winnersCount
+        );
+
+        if (!winners.length) return <Text>No results available</Text>;
+
+        return (
+          <Box>
+            <Flex justify="between" align="center" mb="4">
+              <Text>Show top:</Text>
+              <Select.Root
+                value={winnersCount.toString()}
+                onValueChange={(value) => setWinnersCount(parseInt(value))}
+              >
+                <Select.Trigger />
+                <Select.Content>
+                  {Array.from(
+                    { length: Math.min(5, poll.options.length) },
+                    (_, i) => (
+                      <Select.Item key={i + 1} value={(i + 1).toString()}>
+                        {i + 1}
+                      </Select.Item>
+                    )
+                  )}
+                </Select.Content>
+              </Select.Root>
+            </Flex>
+
+            <Flex direction="column" gap="3">
+              {winners.map((winner, position) => {
+                const option = poll.options.find((opt) => opt.id === winner.id);
+                if (!option) return null;
+                return (
+                  <Box key={winner.id}>
+                    <Flex justify="between" mb="2">
+                      <Text>
+                        #{position + 1}: {option.text}
+                      </Text>
+                      <Text>
+                        Won in round {winner.round} with {winner.votes} vote
+                        {winner.votes !== 1 ? "s" : ""}
+                      </Text>
+                    </Flex>
+                    <Box
+                      style={{
+                        width: "100%",
+                        height: "8px",
+                        backgroundColor: "var(--gray-4)",
+                        borderRadius: "4px",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <Box
+                        style={{
+                          width: `${
+                            (winner.votes / poll.rankedVotes!.length) * 100
+                          }%`,
+                          height: "100%",
+                          backgroundColor: "var(--accent-9)",
+                          transition: "width 0.3s ease",
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                );
+              })}
             </Flex>
           </Box>
-        ));
+        );
+      }
 
-      case "plurality":
-        return poll.options.map((option, index) => {
-          const votes =
-            poll.pluralityVotes?.filter((vote) =>
-              vote.selections.includes(index)
-            ).length || 0;
-          const percentage =
-            totalVoters > 0 ? Math.round((votes / totalVoters) * 100) : 0;
+      case "plurality": {
+        if (!poll.pluralityVotes?.length) return <Text>No votes yet</Text>;
 
+        const voteCounts = poll.options.map((option, index) => ({
+          text: option.text,
+          count: poll.pluralityVotes!.filter((vote) =>
+            vote.selections.includes(index)
+          ).length,
+        }));
+
+        const maxCount = Math.max(...voteCounts.map((v) => v.count));
+
+        return voteCounts.map((option, index) => {
+          const percentage = maxCount > 0 ? (option.count / maxCount) * 100 : 0;
           return (
             <Box key={index}>
               <Flex justify="between" mb="2">
                 <Text>{option.text}</Text>
                 <Text>
-                  {votes} votes ({percentage}%)
+                  {option.count} selection{option.count !== 1 ? "s" : ""}
                 </Text>
               </Flex>
               <Box
@@ -857,68 +1001,57 @@ export default function PollPage({
             </Box>
           );
         });
+      }
 
-      case "pairwise":
-        if (!poll.pairwiseStats) {
-          const initialStats = initializeStats(
-            poll.ratingSystem || "bradley-terry",
-            poll.options.length
+      case "pairwise": {
+        if (!poll.pairwiseStats) return <Text>No comparisons yet</Text>;
+
+        const ratings = Object.entries(poll.pairwiseStats.stats).map(
+          ([index, stats]) => ({
+            text: poll.options[parseInt(index)].text,
+            rating: getRatingValue(stats),
+            wins: stats.wins,
+            comparisons: stats.comparisons,
+          })
+        );
+
+        const maxRating = Math.max(...ratings.map((r) => r.rating));
+        const minRating = Math.min(...ratings.map((r) => r.rating));
+        const range = maxRating - minRating;
+
+        return ratings.map((option, index) => {
+          const percentage =
+            range > 0 ? ((option.rating - minRating) / range) * 100 : 50;
+          return (
+            <Box key={index}>
+              <Flex justify="between" mb="2">
+                <Text>{option.text}</Text>
+                <Text>Rating: {option.rating.toFixed(2)}</Text>
+              </Flex>
+              <Box
+                style={{
+                  width: "100%",
+                  height: "8px",
+                  backgroundColor: "var(--gray-4)",
+                  borderRadius: "4px",
+                  overflow: "hidden",
+                }}
+              >
+                <Box
+                  style={{
+                    width: `${percentage}%`,
+                    height: "100%",
+                    backgroundColor: "var(--accent-9)",
+                    transition: "width 0.3s ease",
+                  }}
+                />
+              </Box>
+            </Box>
           );
-          return renderPairwiseResults(initialStats, poll.options);
-        }
-        return renderPairwiseResults(poll.pairwiseStats, poll.options);
+        });
+      }
     }
   };
-
-  function renderPairwiseResults(
-    pairwiseStats: PairwiseStats,
-    options: PollOption[]
-  ) {
-    // Sort options by their rating
-    const ratings = Object.entries(pairwiseStats?.stats || {})
-      .map(([index, stats]) => ({
-        index: parseInt(index),
-        rating: getRatingValue(stats),
-        uncertainty: getUncertainty(stats),
-        wins: stats.wins,
-        comparisons: stats.comparisons,
-      }))
-      .sort((a, b) => b.rating - a.rating);
-
-    return ratings.map(({ index, rating, uncertainty, wins, comparisons }) => (
-      <Box key={index}>
-        <Flex justify="between" mb="2">
-          <Text>{options[index].text}</Text>
-          <Flex gap="3">
-            <Text>
-              Rating: {rating.toFixed(2)} ±{uncertainty.toFixed(2)}
-            </Text>
-            <Text>
-              Wins: {wins}/{comparisons}
-            </Text>
-          </Flex>
-        </Flex>
-        <Box
-          style={{
-            width: "100%",
-            height: "8px",
-            backgroundColor: "var(--gray-4)",
-            borderRadius: "4px",
-            overflow: "hidden",
-          }}
-        >
-          <Box
-            style={{
-              width: `${((rating + 2) / 4) * 100}%`,
-              height: "100%",
-              backgroundColor: "var(--accent-9)",
-              transition: "width 0.3s ease",
-            }}
-          />
-        </Box>
-      </Box>
-    ));
-  }
 
   if (loading) {
     return (
@@ -972,11 +1105,30 @@ export default function PollPage({
     }
   };
 
+  const canVote = () => {
+    if (!poll) return false;
+
+    switch (poll.votingFormat) {
+      case "single":
+        return selectedOption !== -1;
+      case "ranked":
+        return (
+          !hasDuplicateRankings(rankings) && rankings.every((r) => r !== -1)
+        );
+      case "plurality":
+        return selectedOptions.length > 0;
+      case "pairwise":
+        return selectedOption !== -1;
+      default:
+        return false;
+    }
+  };
+
   return (
     <Box>
       <Card size="3">
         <Flex direction="column" gap="4">
-          <Flex direction="column" gap="2">
+          <Box>
             <Heading size="8" mb="2">
               {poll.title}
             </Heading>
@@ -991,37 +1143,42 @@ export default function PollPage({
                 Your votes: {getUserVoteCount()}
               </Text>
             )}
-          </Flex>
+          </Box>
 
           <Text>{poll.description}</Text>
 
-          {(!hasVoted || poll.votingFormat !== "single") &&
-            renderVotingInterface()}
+          <Tabs.Root defaultValue="vote">
+            <Tabs.List>
+              <Tabs.Trigger value="vote">Vote</Tabs.Trigger>
+              <Tabs.Trigger value="results">Results</Tabs.Trigger>
+            </Tabs.List>
 
-          <Box>
-            <Heading size="3" mb="4">
-              Results
-            </Heading>
-            <Flex direction="column" gap="3">
-              {renderResults()}
-            </Flex>
-          </Box>
+            <Box mt="4">
+              <Tabs.Content value="vote">
+                {(!hasVoted || poll.votingFormat !== "single") &&
+                  renderVotingInterface()}
+                {hasVoted && poll.votingFormat === "single" && (
+                  <Text>You have already voted in this poll.</Text>
+                )}
+                {(!hasVoted || poll.votingFormat !== "single") && (
+                  <Box mt="4">
+                    <Button
+                      onClick={handleVote}
+                      disabled={!canVote() || isVoting}
+                    >
+                      {isVoting ? "Submitting..." : "Submit Vote"}
+                    </Button>
+                  </Box>
+                )}
+              </Tabs.Content>
 
-          {(!hasVoted || poll.votingFormat !== "single") && (
-            <Button
-              onClick={handleVote}
-              disabled={
-                isVoting ||
-                (poll.votingFormat === "single" && selectedOption === -1)
-              }
-            >
-              {isVoting ? "Submitting Vote..." : "Submit Vote"}
-            </Button>
-          )}
-
-          {hasVoted && poll.votingFormat === "single" && (
-            <Text color="gray">You have already voted in this poll</Text>
-          )}
+              <Tabs.Content value="results">
+                <Flex direction="column" gap="3">
+                  {renderResults()}
+                </Flex>
+              </Tabs.Content>
+            </Box>
+          </Tabs.Root>
         </Flex>
       </Card>
     </Box>
