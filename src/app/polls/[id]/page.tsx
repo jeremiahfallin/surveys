@@ -18,6 +18,17 @@ import { PollResults } from "@/components/PollResults";
 import { Poll } from "@/types/poll";
 import { getNextPairwiseComparison } from "@/utils/voting";
 
+// Function to get or create an anonymous user ID
+function getAnonymousUserId(): string {
+  const storageKey = 'anonymous_user_id';
+  let anonymousId = localStorage.getItem(storageKey);
+  if (!anonymousId) {
+    anonymousId = 'anon_' + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem(storageKey, anonymousId);
+  }
+  return anonymousId;
+}
+
 export default function PollPage({
   params,
 }: {
@@ -86,8 +97,10 @@ export default function PollPage({
   }, [resolvedParams.id]);
 
   const handleVote = async () => {
-    if (!poll || !user) return;
+    if (!poll) return;
 
+    const effectiveUserId = user?.uid || getAnonymousUserId();
+    
     setIsVoting(true);
     try {
       const pollRef = doc(db, "polls", resolvedParams.id);
@@ -105,7 +118,7 @@ export default function PollPage({
 
           await updateDoc(pollRef, {
             rankedVotes: arrayUnion({
-              userId: user.uid,
+              userId: effectiveUserId,
               rankings: rankingsMap,
               timestamp: Timestamp.now(),
             }),
@@ -120,7 +133,7 @@ export default function PollPage({
           }
           await updateDoc(pollRef, {
             [`options.${selectedOption}.votes`]: increment(1),
-            singleVoteUsers: arrayUnion(user.uid),
+            singleVoteUsers: arrayUnion(effectiveUserId),
           });
           break;
 
@@ -131,7 +144,7 @@ export default function PollPage({
           }
           await updateDoc(pollRef, {
             pluralityVotes: arrayUnion({
-              userId: user.uid,
+              userId: effectiveUserId,
               selections: selectedOptions,
               timestamp: Timestamp.now(),
             }),
@@ -189,7 +202,7 @@ export default function PollPage({
 
           await updateDoc(pollRef, {
             pairwiseVotes: arrayUnion({
-              userId: user.uid,
+              userId: effectiveUserId,
               winner,
               loser,
               timestamp: Timestamp.now(),
@@ -205,7 +218,7 @@ export default function PollPage({
           // Get next pair
           const nextPair = getNextPairwiseComparison(
             poll.options.length,
-            user.uid,
+            effectiveUserId,
             history,
             scores
           );
@@ -251,9 +264,9 @@ export default function PollPage({
   }
 
   const hasVoted = Boolean(
-    user &&
+    (user?.uid || getAnonymousUserId()) &&
       (poll.votingFormat === "single"
-        ? poll.singleVoteUsers?.includes(user.uid)
+        ? poll.singleVoteUsers?.includes(user?.uid || getAnonymousUserId())
         : false)
   );
 

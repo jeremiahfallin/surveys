@@ -126,11 +126,6 @@ export function CreatePollForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!user) {
-      alert("You must be signed in to create a poll");
-      return;
-    }
-
     if (options.some((option) => !option.text.trim())) {
       alert("All options must be filled out");
       return;
@@ -158,7 +153,7 @@ export function CreatePollForm() {
         })),
         votingFormat,
         createdAt: Timestamp.now(),
-        createdBy: user.uid,
+        createdBy: user?.uid || 'anonymous',
         active: true,
         ...(votingFormat === "single" && { singleVoteUsers: [] }),
         ...(votingFormat === "ranked" && { rankedVotes: [] }),
