@@ -28,7 +28,6 @@ export default function PollsPage() {
         const querySnapshot = await getDocs(pollsQuery);
         const fetchedPolls = querySnapshot.docs.map((doc) => {
           const data = doc.data();
-          console.log("Raw poll data:", data);
           const poll = {
             id: doc.id,
             title: data.title,
@@ -47,7 +46,7 @@ export default function PollsPage() {
             pairwiseStats: data.pairwiseStats,
             singleVoteUsers: data.singleVoteUsers || [],
           };
-          console.log("Processed poll:", poll);
+
           return poll;
         });
 
