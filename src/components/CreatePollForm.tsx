@@ -1,12 +1,7 @@
 "use client";
 import { useState } from "react";
 import { db } from "@/lib/firebase";
-import {
-  collection,
-  addDoc,
-  serverTimestamp,
-  Timestamp,
-} from "firebase/firestore";
+import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { useAuth } from "./AuthProvider";
 import { useRouter } from "next/navigation";
 import {
@@ -153,7 +148,7 @@ export function CreatePollForm() {
         })),
         votingFormat,
         createdAt: Timestamp.now(),
-        createdBy: user?.uid || 'anonymous',
+        createdBy: user?.uid || "anonymous",
         active: true,
         ...(votingFormat === "single" && { singleVoteUsers: [] }),
         ...(votingFormat === "ranked" && { rankedVotes: [] }),

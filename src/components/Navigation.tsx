@@ -2,7 +2,7 @@
 import { useAuth } from "./AuthProvider";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { Box, Button, Flex, Link } from "@radix-ui/themes";
+import { Box, Flex, Link } from "@radix-ui/themes";
 
 export function Navigation() {
   const { user } = useAuth();

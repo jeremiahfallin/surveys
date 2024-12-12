@@ -122,8 +122,8 @@ export function calculateIRVResults(
 ) {
   if (!rankings.length) return [];
 
-  let eliminated: number[] = [];
-  let winners: Array<{ index: number; round: number; votes: number }> = [];
+  const eliminated: number[] = [];
+  const winners: Array<{ index: number; round: number; votes: number }> = [];
   let round = 1;
 
   // Create a map of option text to index
