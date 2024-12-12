@@ -154,14 +154,15 @@ export function PollResults({ poll }: PollResultsProps) {
     }
 
     case "pairwise": {
-      if (!poll.pairwiseStats) return <Text>No comparisons yet</Text>;
+      if (!poll.pairwiseStats?.global?.participants)
+        return <Text>No comparisons yet</Text>;
 
-      const ratings = Object.entries(poll.pairwiseStats.stats).map(
-        ([id, stats]) => ({
-          text: poll.options[parseInt(id)].text,
+      const ratings = Object.entries(poll.pairwiseStats.global.participants)
+        .map(([id, stats]) => ({
+          text: poll.options[Number(id)].text,
           rating: stats.mu,
-        })
-      );
+        }))
+        .sort((a, b) => b.rating - a.rating);
 
       const maxRating = Math.max(...ratings.map((r) => r.rating));
       const minRating = Math.min(...ratings.map((r) => r.rating));

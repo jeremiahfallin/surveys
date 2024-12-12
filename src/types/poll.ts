@@ -27,18 +27,12 @@ export interface PairwiseVote extends Vote {
 
 export interface PairwiseStats {
   system: string;
-  stats: Record<
-    string,
-    {
-      mu: number;
-      sigma: number;
-      beta: number;
-      gamma: number;
-      wins: number;
-      comparisons: number;
-      timestamp: Date;
-    }
-  >;
+  stats: Record<string, PairwiseOptionStats>;
+  global: {
+    participants: Record<string, PairwiseOptionStats>;
+    annotators: Record<string, AnnotatorStats>;
+  };
+  currentComparison?: [number, number];
 }
 
 export interface Poll {
@@ -54,4 +48,25 @@ export interface Poll {
   pluralityVotes?: PluralityVote[];
   pairwiseVotes?: PairwiseVote[];
   pairwiseStats?: PairwiseStats;
+}
+
+export interface PairwiseOptionStats {
+  mu: number;
+  sigma: number;
+  beta: number;
+  gamma: number;
+  wins: number;
+  comparisons: number;
+  timestamp: Date;
+}
+
+export interface AnnotatorStats {
+  reliability: number; // Annotator quality (η_k)
+  comparisons: number; // Total comparisons
+}
+
+export interface Comparison {
+  winner: number; // ID of winner
+  loser: number; // ID of loser
+  annotator: string; // ID of annotator
 }

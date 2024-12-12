@@ -277,7 +277,7 @@ export function PollCard({
 
         const ratings = Object.entries(pairwiseStats.stats)
           .map(([index, stats]) => ({
-            text: options[parseInt(index)].text,
+            text: options[parseInt(index.replace("option-", ""))].text,
             rating: getRating(stats),
             comparisons: stats.comparisons,
           }))

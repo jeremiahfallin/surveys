@@ -15,15 +15,16 @@ import { Box, Card, Flex, Heading, Text, Tabs } from "@radix-ui/themes";
 import { formatDistanceToNow } from "date-fns";
 import { VotingInterface } from "@/components/VotingInterface";
 import { PollResults } from "@/components/PollResults";
-import { Poll } from "@/types/poll";
+import { Comparison, GlobalStats, Poll } from "@/types/poll";
 import { getNextPairwiseComparison } from "@/utils/voting";
+import { processComparison } from "@/utils/crowd";
 
 // Function to get or create an anonymous user ID
 function getAnonymousUserId(): string {
-  const storageKey = 'anonymous_user_id';
+  const storageKey = "anonymous_user_id";
   let anonymousId = localStorage.getItem(storageKey);
   if (!anonymousId) {
-    anonymousId = 'anon_' + Math.random().toString(36).substring(2, 15);
+    anonymousId = "anon_" + Math.random().toString(36).substring(2, 15);
     localStorage.setItem(storageKey, anonymousId);
   }
   return anonymousId;
@@ -100,7 +101,7 @@ export default function PollPage({
     if (!poll) return;
 
     const effectiveUserId = user?.uid || getAnonymousUserId();
-    
+
     setIsVoting(true);
     try {
       const pollRef = doc(db, "polls", resolvedParams.id);
@@ -163,42 +164,57 @@ export default function PollPage({
           // Initialize or update pairwise stats
           const currentStats = poll.pairwiseStats || {
             system: "bradley-terry",
-            stats: {},
+            global: {
+              participants: {},
+              annotators: {},
+            },
+          };
+          currentStats.global = currentStats.global || {
+            participants: {},
+            annotators: {},
           };
 
-          // Initialize stats for both options if they don't exist
-          [winner, loser].forEach((optionIndex) => {
-            if (!currentStats.stats[optionIndex]) {
-              currentStats.stats[optionIndex] = {
-                mu: 0,
-                sigma: 1,
-                beta: 0.5,
-                gamma: 0.1,
-                wins: 0,
-                comparisons: 0,
-                timestamp: new Date(),
-              };
+          const totalVotes = poll.pairwiseVotes?.length || 0;
+
+          const comparison: Comparison = {
+            winner,
+            loser,
+            annotator: effectiveUserId,
+          };
+
+          const newGlobalStats = {
+            participants: {},
+            annotators: {},
+          } as GlobalStats;
+
+          if (totalVotes % 10 === 0) {
+            if (poll.pairwiseVotes) {
+              poll.pairwiseVotes.forEach((stats) => {
+                const historicalComparison = {
+                  winner: stats.winner,
+                  loser: stats.loser,
+                  annotator: stats.userId,
+                };
+                const { winnerStats, loserStats, annotatorStats } =
+                  processComparison(historicalComparison, newGlobalStats);
+
+                newGlobalStats.participants[winner] = winnerStats;
+                newGlobalStats.participants[loser] = loserStats;
+                newGlobalStats.annotators[effectiveUserId] = annotatorStats;
+                console.log(newGlobalStats);
+              });
+              currentStats.global = newGlobalStats;
             }
-          });
+          }
+          const { winnerStats, loserStats, annotatorStats } = processComparison(
+            comparison,
+            currentStats.global
+          );
 
           // Update stats
-          const winnerStats = currentStats.stats[winner];
-          const loserStats = currentStats.stats[loser];
-
-          // Bradley-Terry update
-          const p =
-            1 /
-            (1 + Math.exp((loserStats.mu - winnerStats.mu) / winnerStats.beta));
-          const muDelta = winnerStats.gamma * (1 - p);
-
-          winnerStats.mu += muDelta;
-          winnerStats.wins += 1;
-          winnerStats.comparisons += 1;
-          winnerStats.timestamp = new Date();
-
-          loserStats.mu -= muDelta;
-          loserStats.comparisons += 1;
-          loserStats.timestamp = new Date();
+          currentStats.global.participants[winner.toString()] = winnerStats;
+          currentStats.global.participants[loser.toString()] = loserStats;
+          currentStats.global.annotators[effectiveUserId] = annotatorStats;
 
           await updateDoc(pollRef, {
             pairwiseVotes: arrayUnion({
@@ -274,7 +290,7 @@ export default function PollPage({
     <Box>
       <Card size="3">
         <Flex direction="column" gap="4">
-          <Box>
+          <Flex direction="column" gap="2">
             <Heading size="8" mb="2">
               {poll.title}
             </Heading>
@@ -284,7 +300,7 @@ export default function PollPage({
             <Text color="gray" size="2">
               Voting format: {poll.votingFormat}
             </Text>
-          </Box>
+          </Flex>
 
           <Text>{poll.description}</Text>
 

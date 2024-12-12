@@ -10,6 +10,7 @@ import {
 } from "@radix-ui/themes";
 import { Poll } from "@/types/poll";
 import { getOrdinalSuffix } from "@/utils/voting";
+import { PollImage } from "./PollImage";
 
 interface VotingInterfaceProps {
   poll: Poll;
@@ -136,20 +137,32 @@ export function VotingInterface({
           <Flex direction="column" gap="3">
             <Text>Which option do you prefer?</Text>
             <Flex gap="4" justify="center">
-              <Button
-                onClick={() => setSelectedOption(optionA)}
-                variant={selectedOption === optionA ? "solid" : "soft"}
-                disabled={hasVoted}
-              >
-                {poll.options[optionA].text}
-              </Button>
-              <Button
-                onClick={() => setSelectedOption(optionB)}
-                variant={selectedOption === optionB ? "solid" : "soft"}
-                disabled={hasVoted}
-              >
-                {poll.options[optionB].text}
-              </Button>
+              <Flex direction="column" gap="2">
+                <Button
+                  onClick={() => setSelectedOption(optionA)}
+                  variant={selectedOption === optionA ? "solid" : "soft"}
+                  disabled={hasVoted}
+                >
+                  {poll.options[optionA].text}
+                </Button>
+                <PollImage
+                  imageUrl={poll.options[optionA].imageUrl}
+                  alt={poll.options[optionA].text}
+                />
+              </Flex>
+              <Flex direction="column" gap="2">
+                <Button
+                  onClick={() => setSelectedOption(optionB)}
+                  variant={selectedOption === optionB ? "solid" : "soft"}
+                  disabled={hasVoted}
+                >
+                  {poll.options[optionB].text}
+                </Button>
+                <PollImage
+                  imageUrl={poll.options[optionB].imageUrl}
+                  alt={poll.options[optionB].text}
+                />
+              </Flex>
             </Flex>
           </Flex>
         );
