@@ -46,7 +46,7 @@ interface PairwiseStats {
   global: {
     participants: Record<string, RatingStats>;
     annotators: Record<string, RatingStats>;
-  };
+  }
 }
 
 interface PollOption {
@@ -235,13 +235,11 @@ export function PollCard({
         if (!pairwiseStats) return null;
 
         const ratings = Object.entries(pairwiseStats.global.participants)
-          .map(([index, stats]) => {
-            return {
-              text: options[parseInt(index.replace("option-", ""))]?.text,
-              rating: getRating(stats),
-              comparisons: stats.comparisons,
-            };
-          })
+          .map(([index, stats]) => ({
+            text: options[parseInt(index.replace("option-", ""))].text,
+            rating: getRating(stats),
+            comparisons: stats.comparisons,
+          }))
           .sort((a, b) => b.rating - a.rating);
 
         const totalComparisons =
