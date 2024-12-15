@@ -21,7 +21,6 @@ export function updatePairwiseStats(
 ): PairwiseStats {
   const newStats: PairwiseStats = {
     system: "bradley-terry",
-    stats: {},
     global: {
       participants: { ...currentStats.participants },
       annotators: { ...currentStats.annotators },
@@ -30,8 +29,8 @@ export function updatePairwiseStats(
   };
 
   // Convert number indices to string IDs
-  const winnerId = vote.winner.toString();
-  const loserId = vote.loser.toString();
+  const winnerId = vote.winner;
+  const loserId = vote.loser;
 
   // Initialize stats for new participants
   if (!newStats.global.participants[winnerId]) {
@@ -85,13 +84,13 @@ export function updatePairwiseStats(
 }
 
 export function getNextComparison(
-  participants: string[],
+  participants: number[],
   stats: PairwiseStats["global"]
 ): [number, number] {
   // Initialize scores for new participants
   const participantScores = participants.map((id) => ({
     id,
-    stats: stats.participants[id] || initializeParticipantStats(id),
+    stats: stats.participants[id] || initializeParticipantStats(),
   }));
 
   // Calculate information gain for each possible pair

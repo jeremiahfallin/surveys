@@ -15,7 +15,7 @@ import { Box, Card, Flex, Heading, Text, Tabs } from "@radix-ui/themes";
 import { formatDistanceToNow } from "date-fns";
 import { VotingInterface } from "@/components/VotingInterface";
 import { PollResults } from "@/components/PollResults";
-import { Comparison, GlobalStats, Poll } from "@/types/poll";
+import { Comparison, PairwiseStats, Poll } from "@/types/poll";
 import { getNextPairwiseComparison } from "@/utils/voting";
 import { processComparison } from "@/utils/crowd";
 
@@ -72,10 +72,12 @@ export default function PollPage({
         } else if (data.votingFormat === "pairwise") {
           if (!!user) {
             const history = pollData.pairwiseVotes || [];
-            const scores = pollData.pairwiseStats?.stats
-              ? Object.values(pollData.pairwiseStats.stats).map((stat) => {
-                  return stat.mu;
-                })
+            const scores = pollData.pairwiseStats?.global.participants
+              ? Object.values(pollData.pairwiseStats.global.participants).map(
+                  (stat) => {
+                    return stat.mu;
+                  }
+                )
               : Array(pollData.options.length).fill(0);
             const nextPair = getNextPairwiseComparison(
               pollData.options.length,
@@ -185,7 +187,7 @@ export default function PollPage({
           const newGlobalStats = {
             participants: {},
             annotators: {},
-          } as GlobalStats;
+          } as PairwiseStats["global"];
 
           if (totalVotes % 10 === 0) {
             if (poll.pairwiseVotes) {
@@ -208,12 +210,15 @@ export default function PollPage({
           }
           const { winnerStats, loserStats, annotatorStats } = processComparison(
             comparison,
-            currentStats.global
+            {
+              participants: currentStats.global.participants,
+              annotators: currentStats.global.annotators,
+            }
           );
 
           // Update stats
-          currentStats.global.participants[winner.toString()] = winnerStats;
-          currentStats.global.participants[loser.toString()] = loserStats;
+          currentStats.global.participants[winner] = winnerStats;
+          currentStats.global.participants[loser] = loserStats;
           currentStats.global.annotators[effectiveUserId] = annotatorStats;
 
           await updateDoc(pollRef, {
@@ -227,7 +232,7 @@ export default function PollPage({
           });
 
           const history = poll.pairwiseVotes || [];
-          const scores = Object.values(currentStats.stats).map(
+          const scores = Object.values(currentStats.global.participants).map(
             (stat) => stat.mu
           );
 

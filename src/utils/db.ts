@@ -12,7 +12,7 @@ import {
   addDoc,
   Timestamp,
 } from "firebase/firestore";
-import { Poll, GlobalStats } from "@/types/poll";
+import { PairwiseStats, Poll } from "@/types/poll";
 import { updatePairwiseStats, getNextComparison } from "./pairwise";
 
 export async function createPoll(poll: Omit<Poll, "id">) {
@@ -105,7 +105,7 @@ export async function submitPairwiseVote(
   if (!pollDoc.exists()) throw new Error("Poll not found");
 
   const poll = pollDoc.data() as Poll;
-  const currentStats: GlobalStats = poll.pairwiseStats?.globalStats || {
+  const currentStats: PairwiseStats["global"] = poll.pairwiseStats?.global || {
     participants: {},
     annotators: {},
   };
@@ -113,13 +113,21 @@ export async function submitPairwiseVote(
   // Update stats with new vote
   const newStats = updatePairwiseStats(
     currentStats,
-    { winner, loser, userId, timestamp: new Date() },
+    {
+      winner: Number(winner),
+      loser: Number(loser),
+      userId,
+      timestamp: new Date(),
+    },
     userId
   );
 
   // Get next comparison
-  const optionIds = poll.options.map((opt) => opt.id);
-  const [nextA, nextB] = getNextComparison(optionIds, newStats);
+  const optionIds = poll.options.map((opt, index) => index);
+  const [nextA, nextB] = getNextComparison(optionIds, {
+    participants: currentStats.participants,
+    annotators: currentStats.annotators,
+  });
 
   await updateDoc(pollRef, {
     pairwiseVotes: arrayUnion({

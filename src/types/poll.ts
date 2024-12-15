@@ -27,9 +27,8 @@ export interface PairwiseVote extends Vote {
 
 export interface PairwiseStats {
   system: string;
-  stats: Record<string, PairwiseOptionStats>;
   global: {
-    participants: Record<string, PairwiseOptionStats>;
+    participants: Record<number, PairwiseOptionStats>;
     annotators: Record<string, AnnotatorStats>;
   };
   currentComparison?: [number, number];
