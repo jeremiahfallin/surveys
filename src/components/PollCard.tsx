@@ -1,5 +1,13 @@
 "use client";
-import { Card, Heading, Text, Box, Flex, Button } from "@radix-ui/themes";
+import {
+  Card,
+  Heading,
+  Text,
+  Box,
+  Flex,
+  Button,
+  Progress,
+} from "@radix-ui/themes";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { VotingFormat } from "@/components/CreatePollForm";
@@ -35,7 +43,10 @@ type RatingStats = EloStats | BradleyTerryStats | TrueSkillStats;
 
 interface PairwiseStats {
   system: string;
-  stats: Record<string, RatingStats>;
+  global: {
+    participants: Record<string, RatingStats>;
+    annotators: Record<string, RatingStats>;
+  };
 }
 
 interface PollOption {
@@ -83,6 +94,7 @@ function getRating(stats: RatingStats): number {
 }
 
 function OptionDisplay({ option, value, maxValue }: OptionDisplayProps) {
+  console.log(value);
   return (
     <Box>
       <Flex justify="between" align="center" gap="2">
@@ -105,25 +117,7 @@ function OptionDisplay({ option, value, maxValue }: OptionDisplayProps) {
         </Flex>
         <Text size="2">{value}</Text>
       </Flex>
-      <Box
-        style={{
-          width: "100%",
-          height: "4px",
-          backgroundColor: "var(--gray-4)",
-          borderRadius: "2px",
-          overflow: "hidden",
-          marginTop: "4px",
-        }}
-      >
-        <Box
-          style={{
-            width: `${(value / maxValue) * 100}%`,
-            height: "100%",
-            backgroundColor: "var(--accent-9)",
-            transition: "width 0.3s ease",
-          }}
-        />
-      </Box>
+      <Progress value={value} max={maxValue} />
     </Box>
   );
 }
@@ -195,24 +189,7 @@ export function PollCard({
                   <Text size="2">{option.text}</Text>
                   <Text size="2">{option.score} points</Text>
                 </Flex>
-                <Box
-                  style={{
-                    width: "100%",
-                    height: "4px",
-                    backgroundColor: "var(--gray-4)",
-                    borderRadius: "2px",
-                    overflow: "hidden",
-                  }}
-                >
-                  <Box
-                    style={{
-                      width: `${(option.score / maxScore) * 100}%`,
-                      height: "100%",
-                      backgroundColor: "var(--accent-9)",
-                      transition: "width 0.3s ease",
-                    }}
-                  />
-                </Box>
+                <Progress value={option.score} max={maxScore} />
               </Box>
             ))}
           </Box>
@@ -248,24 +225,7 @@ export function PollCard({
                     {option.count} selection{option.count !== 1 ? "s" : ""}
                   </Text>
                 </Flex>
-                <Box
-                  style={{
-                    width: "100%",
-                    height: "4px",
-                    backgroundColor: "var(--gray-4)",
-                    borderRadius: "2px",
-                    overflow: "hidden",
-                  }}
-                >
-                  <Box
-                    style={{
-                      width: `${(option.count / maxCount) * 100}%`,
-                      height: "100%",
-                      backgroundColor: "var(--accent-9)",
-                      transition: "width 0.3s ease",
-                    }}
-                  />
-                </Box>
+                <Progress value={option.count} max={maxCount} />
               </Box>
             ))}
           </Box>
@@ -275,7 +235,7 @@ export function PollCard({
       case "pairwise": {
         if (!pairwiseStats) return null;
 
-        const ratings = Object.entries(pairwiseStats.stats)
+        const ratings = Object.entries(pairwiseStats.global.participants)
           .map(([index, stats]) => ({
             text: options[parseInt(index.replace("option-", ""))].text,
             rating: getRating(stats),
@@ -298,26 +258,10 @@ export function PollCard({
                   <Text size="2">{option.text}</Text>
                   <Text size="2">Rating: {option.rating.toFixed(2)}</Text>
                 </Flex>
-                <Box
-                  style={{
-                    width: "100%",
-                    height: "4px",
-                    backgroundColor: "var(--gray-4)",
-                    borderRadius: "2px",
-                    overflow: "hidden",
-                  }}
-                >
-                  <Box
-                    style={{
-                      width: `${
-                        ((option.rating - minRating) / ratingRange) * 100
-                      }%`,
-                      height: "100%",
-                      backgroundColor: "var(--accent-9)",
-                      transition: "width 0.3s ease",
-                    }}
-                  />
-                </Box>
+                <Progress
+                  value={(option.rating - minRating) / ratingRange}
+                  max={1}
+                />
               </Box>
             ))}
           </Box>

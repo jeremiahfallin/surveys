@@ -12,8 +12,9 @@ import {
   addDoc,
   Timestamp,
 } from "firebase/firestore";
-import { PairwiseStats, Poll } from "@/types/poll";
-import { updatePairwiseStats, getNextComparison } from "./pairwise";
+import { Poll } from "@/types/poll";
+import { getNextComparison, processComparison } from "./pairwise";
+import { reprocessComparisons } from "@/utils/pairwise";
 
 export async function createPoll(poll: Omit<Poll, "id">) {
   const pollsRef = collection(db, "polls");
@@ -96,39 +97,76 @@ export async function submitPluralityVote(
 
 export async function submitPairwiseVote(
   pollId: string,
-  winner: string,
-  loser: string,
+  winner: number,
+  loser: number,
   userId: string
 ) {
   const pollRef = doc(db, "polls", pollId);
   const pollDoc = await getDoc(pollRef);
   if (!pollDoc.exists()) throw new Error("Poll not found");
 
-  const poll = pollDoc.data() as Poll;
-  const currentStats: PairwiseStats["global"] = poll.pairwiseStats?.global || {
-    participants: {},
-    annotators: {},
+  const poll = {
+    id: pollDoc.id,
+    ...pollDoc.data(),
+    createdAt: pollDoc.data()?.createdAt?.toDate() || new Date(),
+  } as Poll;
+
+  // Initialize or update pairwise stats
+  const currentStats = poll.pairwiseStats || {
+    system: "bradley-terry",
+    global: {
+      participants: {},
+      annotators: {},
+    },
   };
 
-  // Update stats with new vote
-  const newStats = updatePairwiseStats(
-    currentStats,
+  // Add current comparison
+  const comparison = {
+    winner,
+    loser,
+    annotator: userId,
+  };
+
+  const history = [
+    ...(poll.pairwiseVotes || []),
     {
-      winner: Number(winner),
-      loser: Number(loser),
       userId,
+      winner,
+      loser,
       timestamp: new Date(),
     },
-    userId
-  );
+  ];
+
+  // Reprocess stats periodically
+  const totalVotes = history.length;
+  if (totalVotes % 10 === 0) {
+    const comparisons = history.map((vote) => ({
+      winner: vote.winner,
+      loser: vote.loser,
+      annotator: vote.userId,
+    }));
+    currentStats.global = reprocessComparisons(comparisons, {
+      participants: {},
+      annotators: {},
+    });
+  } else {
+    // Process only the current comparison
+    const { winnerStats, loserStats, annotatorStats } = processComparison(
+      comparison,
+      currentStats.global
+    );
+    currentStats.global.participants[winner] = winnerStats;
+    currentStats.global.participants[loser] = loserStats;
+    currentStats.global.annotators[userId] = annotatorStats;
+  }
 
   // Get next comparison
-  const optionIds = poll.options.map((opt, index) => index);
-  const [nextA, nextB] = getNextComparison(optionIds, {
-    participants: currentStats.participants,
-    annotators: currentStats.annotators,
-  });
+  const nextPair = getNextComparison(
+    poll.options.map((opt, index) => index),
+    currentStats.global
+  );
 
+  // Update database
   await updateDoc(pollRef, {
     pairwiseVotes: arrayUnion({
       userId,
@@ -136,9 +174,11 @@ export async function submitPairwiseVote(
       loser,
       timestamp: Timestamp.now(),
     }),
-    "pairwiseStats.globalStats": newStats,
-    "pairwiseStats.currentComparison": [nextA, nextB],
+    pairwiseStats: currentStats,
   });
 
-  return { newStats, nextComparison: [nextA, nextB] };
+  return {
+    stats: currentStats,
+    nextComparison: nextPair,
+  };
 }

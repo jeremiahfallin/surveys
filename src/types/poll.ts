@@ -50,10 +50,10 @@ export interface Poll {
 }
 
 export interface PairwiseOptionStats {
-  mu: number;
-  sigma: number;
-  beta: number;
-  gamma: number;
+  mu: number; // Mean
+  sigma: number; // Standard deviation
+  beta: number; // Precision
+  gamma: number; // Learning rate
   wins: number;
   comparisons: number;
   timestamp: Date;
@@ -62,6 +62,8 @@ export interface PairwiseOptionStats {
 export interface AnnotatorStats {
   reliability: number; // Annotator quality (η_k)
   comparisons: number; // Total comparisons
+  alpha: number;
+  beta: number;
 }
 
 export interface Comparison {

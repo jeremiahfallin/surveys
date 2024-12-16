@@ -17,9 +17,9 @@ import { VotingInterface } from "@/components/VotingInterface";
 import { PollResults } from "@/components/PollResults";
 import { Comparison, PairwiseStats, Poll } from "@/types/poll";
 import { getNextPairwiseComparison } from "@/utils/voting";
-import { processComparison } from "@/utils/crowd";
+import { processComparison } from "@/utils/pairwise";
+import { submitPairwiseVote } from "@/utils/db";
 
-// Function to get or create an anonymous user ID
 function getAnonymousUserId(): string {
   const storageKey = "anonymous_user_id";
   let anonymousId = localStorage.getItem(storageKey);
@@ -163,87 +163,18 @@ export default function PollPage({
           const winner = selectedOption;
           const loser = selectedOption === optionA ? optionB : optionA;
 
-          // Initialize or update pairwise stats
-          const currentStats = poll.pairwiseStats || {
-            system: "bradley-terry",
-            global: {
-              participants: {},
-              annotators: {},
-            },
-          };
-          currentStats.global = currentStats.global || {
-            participants: {},
-            annotators: {},
-          };
-
-          const totalVotes = poll.pairwiseVotes?.length || 0;
-
-          const comparison: Comparison = {
+          const { stats, nextComparison } = await submitPairwiseVote(
+            resolvedParams.id,
             winner,
             loser,
-            annotator: effectiveUserId,
-          };
-
-          const newGlobalStats = {
-            participants: {},
-            annotators: {},
-          } as PairwiseStats["global"];
-
-          if (totalVotes % 10 === 0) {
-            if (poll.pairwiseVotes) {
-              poll.pairwiseVotes.forEach((stats) => {
-                const historicalComparison = {
-                  winner: stats.winner,
-                  loser: stats.loser,
-                  annotator: stats.userId,
-                };
-                const { winnerStats, loserStats, annotatorStats } =
-                  processComparison(historicalComparison, newGlobalStats);
-
-                newGlobalStats.participants[winner] = winnerStats;
-                newGlobalStats.participants[loser] = loserStats;
-                newGlobalStats.annotators[effectiveUserId] = annotatorStats;
-                console.log(newGlobalStats);
-              });
-              currentStats.global = newGlobalStats;
-            }
-          }
-          const { winnerStats, loserStats, annotatorStats } = processComparison(
-            comparison,
-            {
-              participants: currentStats.global.participants,
-              annotators: currentStats.global.annotators,
-            }
+            effectiveUserId
           );
 
-          // Update stats
-          currentStats.global.participants[winner] = winnerStats;
-          currentStats.global.participants[loser] = loserStats;
-          currentStats.global.annotators[effectiveUserId] = annotatorStats;
-
-          await updateDoc(pollRef, {
-            pairwiseVotes: arrayUnion({
-              userId: effectiveUserId,
-              winner,
-              loser,
-              timestamp: Timestamp.now(),
-            }),
-            pairwiseStats: currentStats,
+          setPoll({
+            ...poll,
+            pairwiseStats: stats,
           });
-
-          const history = poll.pairwiseVotes || [];
-          const scores = Object.values(currentStats.global.participants).map(
-            (stat) => stat.mu
-          );
-
-          // Get next pair
-          const nextPair = getNextPairwiseComparison(
-            poll.options.length,
-            effectiveUserId,
-            history,
-            scores
-          );
-          setCurrentComparison(nextPair);
+          setCurrentComparison(nextComparison);
           break;
       }
 
@@ -292,8 +223,8 @@ export default function PollPage({
   );
 
   return (
-    <Box>
-      <Card size="3">
+    <Flex justify="center" p="2">
+      <Flex maxWidth={"600px"}>
         <Flex direction="column" gap="4">
           <Flex direction="column" gap="2">
             <Heading size="8" mb="2">
@@ -338,7 +269,7 @@ export default function PollPage({
             </Box>
           </Tabs.Root>
         </Flex>
-      </Card>
-    </Box>
+      </Flex>
+    </Flex>
   );
 }

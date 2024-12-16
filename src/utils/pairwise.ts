@@ -1,99 +1,111 @@
-import { PairwiseStats, PairwiseVote, PairwiseOptionStats } from "@/types/poll";
+import {
+  AnnotatorStats,
+  Comparison,
+  PairwiseStats,
+  PairwiseOptionStats,
+} from "@/types/poll";
 
-const DEFAULT_PARTICIPANT_STATS: PairwiseOptionStats = {
-  mu: 0, // Initial mean score
-  sigma: 1,
-  beta: 0.5, // Initial uncertainty in score
-  gamma: 0.1, // Learning rate
-  wins: 0,
-  comparisons: 0,
-  timestamp: new Date(),
-};
-
-export function initializeParticipantStats(): PairwiseOptionStats {
-  return { ...DEFAULT_PARTICIPANT_STATS };
+function initializeParticipantStats(): PairwiseOptionStats {
+  return {
+    mu: 0, // Start at neutral score
+    sigma: 1,
+    beta: 1, // High uncertainty initially
+    gamma: 0.1, // Learning rate
+    wins: 0,
+    comparisons: 0,
+    timestamp: new Date(),
+  };
 }
 
-export function updatePairwiseStats(
-  currentStats: PairwiseStats["global"],
-  vote: PairwiseVote,
-  userId: string
-): PairwiseStats {
-  const newStats: PairwiseStats = {
-    system: "bradley-terry",
-    global: {
-      participants: { ...currentStats.participants },
-      annotators: { ...currentStats.annotators },
-    },
-    currentComparison: undefined,
+function initializeAnnotatorStats(): AnnotatorStats {
+  return {
+    reliability: 1, // Start with maximum reliability
+    alpha: 1, // Beta distribution alpha parameter
+    beta: 1, // Beta distribution beta parameter
+    comparisons: 0,
   };
+}
 
-  // Convert number indices to string IDs
-  const winnerId = vote.winner;
-  const loserId = vote.loser;
+function updateAnnotatorQuality(
+  annotator: AnnotatorStats,
+  observed: boolean,
+  expected: boolean
+): void {
+  const agreement = observed === expected ? 1 : 0;
 
-  // Initialize stats for new participants
-  if (!newStats.global.participants[winnerId]) {
-    newStats.global.participants[winnerId] = initializeParticipantStats();
+  // Update `alpha` and `beta` based on agreement or disagreement
+  annotator.alpha += agreement; // Increment alpha for agreements
+  annotator.beta += 1 - agreement; // Increment beta for disagreements
+}
+
+export function processComparison(
+  comparison: Comparison,
+  globalStats: PairwiseStats["global"]
+): {
+  winnerStats: PairwiseOptionStats;
+  loserStats: PairwiseOptionStats;
+  annotatorStats: AnnotatorStats;
+} {
+  const { winner, loser, annotator } = comparison;
+
+  // Initialize participant and annotator stats if not already present
+  if (!globalStats.participants[winner]) {
+    globalStats.participants[winner] = initializeParticipantStats();
   }
-  if (!newStats.global.participants[loserId]) {
-    newStats.global.participants[loserId] = initializeParticipantStats();
+  if (!globalStats.participants[loser]) {
+    globalStats.participants[loser] = initializeParticipantStats();
   }
-  if (!newStats.global.annotators[userId]) {
-    newStats.global.annotators[userId] = {
-      reliability: 1.0,
-      comparisons: 0,
-    };
+  if (!globalStats.annotators[annotator]) {
+    globalStats.annotators[annotator] = initializeAnnotatorStats();
   }
 
-  const winnerStats = newStats.global.participants[winnerId];
-  const loserStats = newStats.global.participants[loserId];
-  const annotatorStats = newStats.global.annotators[userId];
+  const winnerStats = globalStats.participants[winner];
+  const loserStats = globalStats.participants[loser];
+  const annotatorStats = globalStats.annotators[annotator];
 
-  // Calculate probability of observed outcome using Bradley-Terry model
-  const p =
-    1 / (1 + Math.exp((loserStats.mu - winnerStats.mu) / winnerStats.beta));
+  // Compute the probability using the Crowd-BT model
+  const eta =
+    annotatorStats.alpha / (annotatorStats.alpha + annotatorStats.beta);
+  const probability =
+    eta * (1 / (1 + Math.exp(loserStats.mu - winnerStats.mu))) +
+    (1 - eta) *
+      (Math.exp(loserStats.mu - winnerStats.mu) /
+        (1 + Math.exp(loserStats.mu - winnerStats.mu)));
 
-  // Weight update by annotator reliability
-  const updateWeight = annotatorStats.reliability;
+  // Update scores based on the probability
+  const dynamicGamma = Math.min(0.1, 1 / (1 + winnerStats.comparisons));
+  const gradient = dynamicGamma * (1 - probability);
 
-  // Update participant scores
-  const muDelta = winnerStats.gamma * (1 - p) * updateWeight;
-  winnerStats.mu += muDelta;
-  loserStats.mu -= muDelta;
+  winnerStats.mu += gradient * (1 / winnerStats.beta);
+  loserStats.mu -= gradient * (1 / loserStats.beta);
 
-  // Update comparison counts
+  // Adjust beta to decrease uncertainty over time
+  winnerStats.beta = Math.max(winnerStats.beta * 0.9, 0.1);
+  loserStats.beta = Math.max(loserStats.beta * 0.9, 0.1);
+
   winnerStats.comparisons += 1;
   loserStats.comparisons += 1;
-  winnerStats.wins += 1;
+
+  // Update annotator reliability
+  updateAnnotatorQuality(annotatorStats, probability > 0.5, true);
   annotatorStats.comparisons += 1;
 
-  // Update timestamps
-  winnerStats.timestamp = new Date();
-  loserStats.timestamp = new Date();
-
-  // Update annotator reliability based on agreement with model
-  const agreementScore = 1 - Math.abs(1 - p); // High when annotator agrees with model
-  const reliabilityUpdate = 0.1 * (agreementScore - annotatorStats.reliability);
-  annotatorStats.reliability = Math.max(
-    0.1,
-    Math.min(1.0, annotatorStats.reliability + reliabilityUpdate)
-  );
-
-  return newStats;
+  return {
+    winnerStats,
+    loserStats,
+    annotatorStats,
+  };
 }
 
 export function getNextComparison(
   participants: number[],
   stats: PairwiseStats["global"]
 ): [number, number] {
-  // Initialize scores for new participants
   const participantScores = participants.map((id) => ({
     id,
     stats: stats.participants[id] || initializeParticipantStats(),
   }));
 
-  // Calculate information gain for each possible pair
   let maxGain = -1;
   let bestPair: [number, number] = [0, 1];
 
@@ -102,20 +114,15 @@ export function getNextComparison(
       const a = participantScores[i];
       const b = participantScores[j];
 
-      // Calculate expected information gain
       const uncertaintyFactor = Math.sqrt(
         a.stats.beta ** 2 + b.stats.beta ** 2
       );
       const skillDiff = Math.abs(a.stats.mu - b.stats.mu);
-      const comparisonFactor =
-        1 / (1 + Math.min(a.stats.comparisons, b.stats.comparisons));
-
-      const gain =
-        uncertaintyFactor * (1 - Math.tanh(skillDiff)) * comparisonFactor;
+      const gain = uncertaintyFactor * Math.exp(-skillDiff / 2);
 
       if (gain > maxGain) {
         maxGain = gain;
-        bestPair = [i, j];
+        bestPair = [a.id, b.id];
       }
     }
   }
@@ -132,4 +139,24 @@ export function getRankings(
       score: stats.mu,
     }))
     .sort((a, b) => b.score - a.score);
+}
+
+export function reprocessComparisons(
+  comparisons: Comparison[],
+  globalStats: PairwiseStats["global"]
+): PairwiseStats["global"] {
+  // Reset all participants and annotators stats
+  Object.values(globalStats.participants).forEach((participant) => {
+    Object.assign(participant, initializeParticipantStats());
+  });
+  Object.values(globalStats.annotators).forEach((annotator) => {
+    Object.assign(annotator, initializeAnnotatorStats());
+  });
+
+  // Reprocess each comparison in sequence
+  comparisons.forEach((comparison) => {
+    processComparison(comparison, globalStats);
+  });
+
+  return globalStats;
 }

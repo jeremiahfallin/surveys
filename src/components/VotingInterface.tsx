@@ -7,6 +7,9 @@ import {
   Radio,
   Checkbox,
   Button,
+  Card,
+  RadioCards,
+  Heading,
 } from "@radix-ui/themes";
 import { Poll } from "@/types/poll";
 import { getOrdinalSuffix } from "@/utils/voting";
@@ -136,34 +139,36 @@ export function VotingInterface({
         return (
           <Flex direction="column" gap="3">
             <Text>Which option do you prefer?</Text>
-            <Flex gap="4" justify="center">
-              <Flex direction="column" gap="2">
-                <Button
-                  onClick={() => setSelectedOption(optionA)}
-                  variant={selectedOption === optionA ? "solid" : "soft"}
-                  disabled={hasVoted}
+            <RadioCards.Root
+              size="1"
+              disabled={isVoting}
+              onValueChange={(value) => setSelectedOption(Number(value))}
+            >
+              <Flex justify="center" gap="4">
+                <RadioCards.Item
+                  dir="column"
+                  value={optionA.toString()}
+                  disabled={isVoting}
                 >
-                  {poll.options[optionA].text}
-                </Button>
-                <PollImage
-                  imageUrl={poll.options[optionA].imageUrl}
-                  alt={poll.options[optionA].text}
-                />
+                  <Flex direction="column" gap="2" align="center">
+                    <Heading>{poll.options[optionA].text}</Heading>
+                    <PollImage
+                      imageUrl={poll.options[optionA].imageUrl}
+                      alt={poll.options[optionA].text}
+                    />
+                  </Flex>
+                </RadioCards.Item>
+                <RadioCards.Item value={optionB.toString()} disabled={isVoting}>
+                  <Flex direction="column" gap="2" align="center">
+                    <Heading>{poll.options[optionB].text}</Heading>
+                    <PollImage
+                      imageUrl={poll.options[optionB].imageUrl}
+                      alt={poll.options[optionB].text}
+                    />
+                  </Flex>
+                </RadioCards.Item>
               </Flex>
-              <Flex direction="column" gap="2">
-                <Button
-                  onClick={() => setSelectedOption(optionB)}
-                  variant={selectedOption === optionB ? "solid" : "soft"}
-                  disabled={hasVoted}
-                >
-                  {poll.options[optionB].text}
-                </Button>
-                <PollImage
-                  imageUrl={poll.options[optionB].imageUrl}
-                  alt={poll.options[optionB].text}
-                />
-              </Flex>
-            </Flex>
+            </RadioCards.Root>
           </Flex>
         );
     }

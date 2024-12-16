@@ -64,7 +64,7 @@ export default function PollsPage() {
 
   if (loading) {
     return (
-      <Box className="container mx-auto py-8">
+      <Box>
         <Text>Loading polls...</Text>
       </Box>
     );
@@ -72,14 +72,14 @@ export default function PollsPage() {
 
   if (error) {
     return (
-      <Box className="container mx-auto py-8">
+      <Box>
         <Text color="red">{error}</Text>
       </Box>
     );
   }
 
   return (
-    <Box className="container mx-auto py-8">
+    <Box p="2">
       <Heading size="8" mb="6">
         Active Polls
       </Heading>
