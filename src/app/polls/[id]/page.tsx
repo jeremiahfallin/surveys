@@ -46,6 +46,7 @@ export default function PollPage({
     [number, number] | null
   >(null);
   const { user } = useAuth();
+  console.log(user);
 
   useEffect(() => {
     async function fetchPoll() {
@@ -69,23 +70,22 @@ export default function PollPage({
         if (data.votingFormat === "ranked") {
           setRankings(new Array(data.options.length).fill(-1));
         } else if (data.votingFormat === "pairwise") {
-          if (!!user) {
-            const history = pollData.pairwiseVotes || [];
-            const scores = pollData.pairwiseStats?.global.participants
-              ? Object.values(pollData.pairwiseStats.global.participants).map(
-                  (stat) => {
-                    return stat.mu;
-                  }
-                )
-              : Array(pollData.options.length).fill(0);
-            const nextPair = getNextPairwiseComparison(
-              pollData.options.length,
-              user.uid,
-              history,
-              scores
-            );
-            setCurrentComparison(nextPair);
-          }
+          const history = pollData.pairwiseVotes || [];
+          const scores = pollData.pairwiseStats?.global.participants
+            ? Object.values(pollData.pairwiseStats.global.participants).map(
+                (stat) => {
+                  return stat.mu;
+                }
+              )
+            : Array(pollData.options.length).fill(0);
+          const effectiveUserId = user?.uid || getAnonymousUserId();
+          const nextPair = getNextPairwiseComparison(
+            pollData.options.length,
+            effectiveUserId,
+            history,
+            scores
+          );
+          setCurrentComparison(nextPair);
         }
       } catch (err) {
         console.error("Error fetching poll:", err);
