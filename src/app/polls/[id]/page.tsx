@@ -11,13 +11,12 @@ import {
   increment,
   Timestamp,
 } from "firebase/firestore";
-import { Box, Card, Flex, Heading, Text, Tabs } from "@radix-ui/themes";
+import { Box, Flex, Heading, Text, Tabs } from "@radix-ui/themes";
 import { formatDistanceToNow } from "date-fns";
 import { VotingInterface } from "@/components/VotingInterface";
 import { PollResults } from "@/components/PollResults";
-import { Comparison, PairwiseStats, Poll } from "@/types/poll";
+import { Poll } from "@/types/poll";
 import { getNextPairwiseComparison } from "@/utils/voting";
-import { processComparison } from "@/utils/pairwise";
 import { submitPairwiseVote } from "@/utils/db";
 
 function getAnonymousUserId(): string {
