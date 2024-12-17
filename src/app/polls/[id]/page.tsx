@@ -46,7 +46,6 @@ export default function PollPage({
     [number, number] | null
   >(null);
   const { user } = useAuth();
-  console.log(user);
 
   useEffect(() => {
     async function fetchPoll() {

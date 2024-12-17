@@ -159,7 +159,7 @@ export function PollResults({ poll }: PollResultsProps) {
 
       const ratings = Object.entries(poll.pairwiseStats.global.participants)
         .map(([id, stats]) => ({
-          text: poll.options[Number(id)].text,
+          text: poll.options[Number(id)]?.text,
           rating: stats.mu,
         }))
         .sort((a, b) => b.rating - a.rating);

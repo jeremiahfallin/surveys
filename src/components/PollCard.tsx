@@ -94,7 +94,6 @@ function getRating(stats: RatingStats): number {
 }
 
 function OptionDisplay({ option, value, maxValue }: OptionDisplayProps) {
-  console.log(value);
   return (
     <Box>
       <Flex justify="between" align="center" gap="2">
@@ -236,11 +235,13 @@ export function PollCard({
         if (!pairwiseStats) return null;
 
         const ratings = Object.entries(pairwiseStats.global.participants)
-          .map(([index, stats]) => ({
-            text: options[parseInt(index.replace("option-", ""))].text,
-            rating: getRating(stats),
-            comparisons: stats.comparisons,
-          }))
+          .map(([index, stats]) => {
+            return {
+              text: options[parseInt(index.replace("option-", ""))]?.text,
+              rating: getRating(stats),
+              comparisons: stats.comparisons,
+            };
+          })
           .sort((a, b) => b.rating - a.rating);
 
         const totalComparisons =

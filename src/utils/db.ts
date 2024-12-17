@@ -12,7 +12,7 @@ import {
   addDoc,
   Timestamp,
 } from "firebase/firestore";
-import { Poll } from "@/types/poll";
+import { PairwiseVote, Poll } from "@/types/poll";
 import { getNextComparison, processComparison } from "./pairwise";
 import { reprocessComparisons } from "@/utils/pairwise";
 
@@ -139,12 +139,31 @@ export async function submitPairwiseVote(
 
   // Reprocess stats periodically
   const totalVotes = history.length;
+  const allOptions = history.reduce<number[]>((prev, curr) => {
+    let newArr = [...prev];
+    if (!prev.includes(curr.winner)) {
+      newArr.push(curr.winner);
+    }
+    if (!prev.includes(curr.loser)) {
+      newArr.push(curr.loser);
+    }
+    return newArr;
+  }, []);
   if (totalVotes % 10 === 0) {
-    const comparisons = history.map((vote) => ({
-      winner: vote.winner,
-      loser: vote.loser,
-      annotator: vote.userId,
-    }));
+    const comparisons = history.flatMap((vote) => {
+      if (
+        !allOptions.includes(vote.winner) ||
+        !allOptions.includes(vote.loser)
+      ) {
+        return [];
+      }
+      return {
+        winner: vote.winner,
+        loser: vote.loser,
+        annotator: vote.userId,
+        timestamp: vote.timestamp,
+      };
+    });
     currentStats.global = reprocessComparisons(comparisons, {
       participants: {},
       annotators: {},
