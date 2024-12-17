@@ -161,24 +161,43 @@ export function PollResults({ poll }: PollResultsProps) {
         .map(([id, stats]) => ({
           text: poll.options[Number(id)]?.text,
           rating: stats.mu,
+          imageUrl: poll.options[Number(id)]?.imageUrl,
+          comparisons: stats.comparisons,
+          wins: stats.wins,
+          losses: stats.comparisons - stats.wins,
         }))
+        .filter((option) => option.text)
         .sort((a, b) => b.rating - a.rating);
 
       const maxRating = Math.max(...ratings.map((r) => r.rating));
       const minRating = Math.min(...ratings.map((r) => r.rating));
       const range = maxRating - minRating;
 
+      const totalComparisons =
+        ratings.reduce((sum, r) => sum + r.comparisons, 0) / 2;
+
       return (
         <Flex direction="column" gap="3">
+          <Text>Total comparisons: {totalComparisons}</Text>
           {ratings.map((option, index) => {
             const percentage =
               range > 0 ? ((option.rating - minRating) / range) * 100 : 50;
+            const winRate =
+              option.comparisons > 0
+                ? Math.round((option.wins / option.comparisons) * 100)
+                : 0;
 
             return (
               <Box key={index}>
                 <Flex justify="between" mb="2">
                   <Text>{option.text}</Text>
-                  <Text>Rating: {option.rating.toFixed(2)}</Text>
+                  <Flex gap="3">
+                    <Text>Rating: {option.rating.toFixed(2)}</Text>
+                    <Text>
+                      • W/L: {option.wins}/{option.losses} ({winRate}%)
+                    </Text>
+                    <Text>• {option.comparisons} total</Text>
+                  </Flex>
                 </Flex>
                 {renderProgressBar(percentage)}
               </Box>

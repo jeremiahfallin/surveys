@@ -83,8 +83,10 @@ export function processComparison(
   winnerStats.beta = Math.max(winnerStats.beta * 0.9, 0.1);
   loserStats.beta = Math.max(loserStats.beta * 0.9, 0.1);
 
+  // Update comparison and win counts
   winnerStats.comparisons += 1;
   loserStats.comparisons += 1;
+  winnerStats.wins += 1; // Increment wins for the winner
 
   // Update annotator reliability
   updateAnnotatorQuality(annotatorStats, probability > 0.5, true);

@@ -44,9 +44,9 @@ type RatingStats = EloStats | BradleyTerryStats | TrueSkillStats;
 interface PairwiseStats {
   system: string;
   global: {
-    participants: Record<string, RatingStats>;
+    participants: Record<number, RatingStats>;
     annotators: Record<string, RatingStats>;
-  }
+  };
 }
 
 interface PollOption {
@@ -236,10 +236,14 @@ export function PollCard({
 
         const ratings = Object.entries(pairwiseStats.global.participants)
           .map(([index, stats]) => ({
-            text: options[parseInt(index.replace("option-", ""))].text,
+            text: options[Number(index)]?.text,
+            imageUrl: options[Number(index)]?.imageUrl,
             rating: getRating(stats),
             comparisons: stats.comparisons,
+            wins: stats.wins,
+            losses: stats.comparisons - stats.wins,
           }))
+          .filter((option) => option.text)
           .sort((a, b) => b.rating - a.rating);
 
         const totalComparisons =
@@ -251,18 +255,30 @@ export function PollCard({
         return (
           <Box>
             <Text size="2">{totalComparisons} comparisons made</Text>
-            {ratings.slice(0, 2).map((option, i) => (
-              <Box key={i}>
-                <Flex justify="between">
-                  <Text size="2">{option.text}</Text>
-                  <Text size="2">Rating: {option.rating.toFixed(2)}</Text>
-                </Flex>
-                <Progress
-                  value={(option.rating - minRating) / ratingRange}
-                  max={1}
-                />
-              </Box>
-            ))}
+            {ratings.slice(0, 2).map((option, i) => {
+              const winRate =
+                option.comparisons > 0
+                  ? Math.round((option.wins / option.comparisons) * 100)
+                  : 0;
+
+              return (
+                <Box key={i}>
+                  <Flex justify="between">
+                    <Text size="2">{option.text}</Text>
+                    <Flex gap="2">
+                      <Text size="2">Rating: {option.rating.toFixed(2)}</Text>
+                      <Text size="2">
+                        • W/L: {option.wins}/{option.losses} ({winRate}%)
+                      </Text>
+                    </Flex>
+                  </Flex>
+                  <Progress
+                    value={(option.rating - minRating) / ratingRange}
+                    max={1}
+                  />
+                </Box>
+              );
+            })}
           </Box>
         );
       }

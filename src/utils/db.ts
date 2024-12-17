@@ -170,6 +170,30 @@ export async function submitPairwiseVote(
     });
   } else {
     // Process only the current comparison
+    // Initialize participants if they don't exist
+    if (!currentStats.global.participants[winner]) {
+      currentStats.global.participants[winner] = {
+        mu: 0,
+        sigma: 1,
+        beta: 1,
+        gamma: 0.1,
+        wins: 0,
+        comparisons: 0,
+        timestamp: new Date(),
+      };
+    }
+    if (!currentStats.global.participants[loser]) {
+      currentStats.global.participants[loser] = {
+        mu: 0,
+        sigma: 1,
+        beta: 1,
+        gamma: 0.1,
+        wins: 0,
+        comparisons: 0,
+        timestamp: new Date(),
+      };
+    }
+
     const { winnerStats, loserStats, annotatorStats } = processComparison(
       comparison,
       currentStats.global
