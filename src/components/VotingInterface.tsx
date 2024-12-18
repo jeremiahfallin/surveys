@@ -275,7 +275,7 @@ export function VotingInterface({
         return selectedOption !== -1;
       case "ranked":
         // Check if all options have unique rankings
-        const uniqueRankings = new Set(rankings);
+        const uniqueRankings = new Set(rankings.filter((r) => r !== -1));
         return uniqueRankings.size === poll.options.length;
       case "plurality":
         return selectedOptions.length > 0;
