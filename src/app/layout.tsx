@@ -1,11 +1,8 @@
 import "./globals.css";
 import "@radix-ui/themes/styles.css";
-import { Inter } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
 import { Navigation } from "@/components/Navigation";
-import { Theme } from "@radix-ui/themes";
-
-const inter = Inter({ subsets: ["latin"] });
+import { Box, Theme } from "@radix-ui/themes";
 
 export const metadata = {
   title: "Voting App",
@@ -19,11 +16,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body>
         <Theme>
           <AuthProvider>
             <Navigation />
-            {children}
+            <Box p="4">{children}</Box>
           </AuthProvider>
         </Theme>
       </body>

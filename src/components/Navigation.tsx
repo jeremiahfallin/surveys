@@ -16,7 +16,7 @@ export function Navigation() {
   };
 
   return (
-    <Box asChild>
+    <Box asChild p="4" style={{ backgroundColor: "var(--mint-3)" }}>
       <nav>
         <Flex justify="between">
           <Link href="/">Voting App</Link>

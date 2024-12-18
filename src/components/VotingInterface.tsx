@@ -138,6 +138,7 @@ function PluralityChoice({
 interface PairwiseChoiceProps {
   options: Poll["options"];
   currentComparison: [number, number] | null;
+  selectedOption: number;
   setSelectedOption: (value: number) => void;
   isVoting: boolean;
 }
@@ -145,6 +146,7 @@ interface PairwiseChoiceProps {
 function PairwiseChoice({
   options,
   currentComparison,
+  selectedOption,
   setSelectedOption,
   isVoting,
 }: PairwiseChoiceProps) {
@@ -168,6 +170,7 @@ function PairwiseChoice({
         <Flex justify="center" gap="4">
           <RadioCards.Item
             dir="column"
+            checked={selectedOption === optionA}
             value={optionA.toString()}
             disabled={isVoting}
           >
@@ -179,7 +182,11 @@ function PairwiseChoice({
               />
             </Flex>
           </RadioCards.Item>
-          <RadioCards.Item value={optionB.toString()} disabled={isVoting}>
+          <RadioCards.Item
+            checked={selectedOption === optionB}
+            value={optionB.toString()}
+            disabled={isVoting}
+          >
             <Flex direction="column" gap="2" align="center">
               <Heading>{options[optionB].text}</Heading>
               <PollImage
@@ -258,10 +265,28 @@ export function VotingInterface({
           <PairwiseChoice
             options={poll.options}
             currentComparison={currentComparison}
+            selectedOption={selectedOption}
             setSelectedOption={setSelectedOption}
             isVoting={isVoting}
           />
         );
+    }
+  };
+
+  const isVoteValid = () => {
+    switch (poll.votingFormat) {
+      case "single":
+        return selectedOption !== -1;
+      case "ranked":
+        // Check if all options have unique rankings
+        const uniqueRankings = new Set(rankings);
+        return uniqueRankings.size === poll.options.length;
+      case "plurality":
+        return selectedOptions.length > 0;
+      case "pairwise":
+        return selectedOption !== -1;
+      default:
+        return false;
     }
   };
 
@@ -270,7 +295,7 @@ export function VotingInterface({
       {renderVotingInterface()}
       {(!hasVoted || poll.votingFormat !== "single") && (
         <Box mt="4">
-          <Button onClick={onVote} disabled={isVoting}>
+          <Button onClick={onVote} disabled={isVoting || !isVoteValid()}>
             {isVoting ? "Submitting..." : "Submit Vote"}
           </Button>
         </Box>

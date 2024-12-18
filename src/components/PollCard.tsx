@@ -246,8 +246,7 @@ export function PollCard({
           .filter((option) => option.text)
           .sort((a, b) => b.rating - a.rating);
 
-        const totalComparisons =
-          ratings.reduce((sum, r) => sum + r.comparisons, 0) / 2;
+        const totalComparisons = ratings.reduce((sum, r) => sum + r.wins, 0);
         const maxRating = Math.max(...ratings.map((r) => r.rating));
         const minRating = Math.min(...ratings.map((r) => r.rating));
         const ratingRange = maxRating - minRating;
