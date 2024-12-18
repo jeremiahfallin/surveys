@@ -20,7 +20,7 @@ export function Navigation() {
       <nav>
         <Flex justify="between">
           <Link href="/">Voting App</Link>
-          <Flex gap="2">
+          <Flex gap="4">
             <Link href="/polls">Polls</Link>
             {user ? (
               <>
