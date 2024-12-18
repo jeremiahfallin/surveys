@@ -22,7 +22,7 @@ function initializeAnnotatorStats(): AnnotatorStats {
     reliability: 1, // Start with maximum reliability
     alpha: 1, // Beta distribution alpha parameter
     beta: 1, // Beta distribution beta parameter
-    comparisons: 0,
+    comparisons: [],
   };
 }
 
@@ -90,7 +90,7 @@ export function processComparison(
 
   // Update annotator reliability
   updateAnnotatorQuality(annotatorStats, probability > 0.5, true);
-  annotatorStats.comparisons += 1;
+  annotatorStats.comparisons.push(comparison);
 
   return {
     winnerStats,
@@ -101,7 +101,8 @@ export function processComparison(
 
 export function getNextComparison(
   participants: number[],
-  stats: PairwiseStats["global"]
+  stats: PairwiseStats["global"],
+  annotatorComparisons: Comparison[]
 ): [number, number] {
   const participantScores = participants.map((id) => ({
     id,
@@ -122,7 +123,14 @@ export function getNextComparison(
       const skillDiff = Math.abs(a.stats.mu - b.stats.mu);
       const gain = uncertaintyFactor * Math.exp(-skillDiff / 2);
 
-      if (gain > maxGain) {
+      if (
+        gain > maxGain &&
+        !annotatorComparisons.some(
+          (c) =>
+            (c.winner === a.id && c.loser === b.id) ||
+            (c.winner === b.id && c.loser === a.id)
+        )
+      ) {
         maxGain = gain;
         bestPair = [a.id, b.id];
       }

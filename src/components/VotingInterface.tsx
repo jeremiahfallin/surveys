@@ -165,12 +165,12 @@ function PairwiseChoice({
       <RadioCards.Root
         size="1"
         disabled={isVoting}
+        value={selectedOption.toString()}
         onValueChange={(value) => setSelectedOption(Number(value))}
       >
         <Flex justify="center" gap="4">
           <RadioCards.Item
             dir="column"
-            checked={selectedOption === optionA}
             value={optionA.toString()}
             disabled={isVoting}
           >
@@ -182,11 +182,7 @@ function PairwiseChoice({
               />
             </Flex>
           </RadioCards.Item>
-          <RadioCards.Item
-            checked={selectedOption === optionB}
-            value={optionB.toString()}
-            disabled={isVoting}
-          >
+          <RadioCards.Item value={optionB.toString()} disabled={isVoting}>
             <Flex direction="column" gap="2" align="center">
               <Heading>{options[optionB].text}</Heading>
               <PollImage

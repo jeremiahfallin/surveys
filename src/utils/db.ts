@@ -206,7 +206,8 @@ export async function submitPairwiseVote(
   // Get next comparison
   const nextPair = getNextComparison(
     poll.options.map((opt, index) => index),
-    currentStats.global
+    currentStats.global,
+    poll.pairwiseStats?.global.annotators[userId].comparisons || []
   );
 
   // Update database
