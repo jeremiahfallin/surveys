@@ -222,7 +222,7 @@ export default function PollPage({
 
   return (
     <Flex justify="center" p="2">
-      <Flex maxWidth={"600px"}>
+      <Flex direction="column" width="100%" style={{ maxWidth: "600px" }}>
         <Flex direction="column" gap="4">
           <Flex direction="column" gap="2">
             <Heading size="8" mb="2">
@@ -244,7 +244,7 @@ export default function PollPage({
               <Tabs.Trigger value="results">Results</Tabs.Trigger>
             </Tabs.List>
 
-            <Box mt="4">
+            <Box mt="4" width="100%">
               <Tabs.Content value="vote">
                 <VotingInterface
                   poll={poll}

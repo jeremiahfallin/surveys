@@ -12,10 +12,10 @@ import {
   TextField,
   Select,
   Text,
+  Card,
 } from "@radix-ui/themes";
 import { ImageUpload } from "./ImageUpload";
-
-export type VotingFormat = "single" | "ranked" | "plurality" | "pairwise";
+import { VotingFormat } from "@/types/poll";
 
 interface VotingFormatInfo {
   label: string;
@@ -190,99 +190,132 @@ export function CreatePollForm() {
   };
 
   return (
-    <Box p="2">
-      <form onSubmit={handleSubmit} className="max-w-2xl mx-auto p-6 space-y-6">
-        <div>
-          <label htmlFor="title">Poll Title</label>
-          <TextField.Root
-            id="title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-            placeholder="What's your poll about?"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="description">Description</label>
-          <TextArea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            placeholder="Provide more details about your poll"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="votingFormat">Voting Format</label>
-          <Select.Root
-            value={votingFormat}
-            onValueChange={(value: VotingFormat) => setVotingFormat(value)}
-          >
-            <Select.Trigger />
-            <Select.Content>
-              {Object.entries(VOTING_FORMAT_INFO).map(([value, { label }]) => (
-                <Select.Item key={value} value={value}>
-                  {label}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select.Root>
-          <Text size="1" color="gray">
-            {VOTING_FORMAT_INFO[votingFormat].description}
-          </Text>
-        </div>
-
-        <Flex direction="column" gap="2" pb="2">
-          <label>Options</label>
-          <Flex direction="column" gap="4">
-            {options.map((option, index) => (
-              <Box key={index} className="p-4 border rounded-lg">
-                <Flex direction="column" gap="2">
-                  <TextField.Root
-                    value={option.text}
-                    onChange={(e) =>
-                      updateOption(index, { text: e.target.value })
-                    }
-                    required
-                    placeholder={`Option ${index + 1}`}
-                  />
-
-                  <ImageUpload
-                    existingImageUrl={option.imageUrl}
-                    onImageUploaded={(url) =>
-                      updateOption(index, { imageUrl: url })
-                    }
-                  />
-
-                  {options.length > 2 && (
-                    <Button
-                      type="button"
-                      onClick={() => removeOption(index)}
-                      variant="soft"
-                      color="red"
-                    >
-                      Remove Option
-                    </Button>
-                  )}
-                </Flex>
-              </Box>
-            ))}
-
+    <Box className="min-h-screen p-6 bg-gradient-to-b from-gray-900 to-gray-800">
+      <form onSubmit={handleSubmit} className="max-w-2xl mx-auto space-y-8">
+        <Card size="3">
+          <Flex direction="column" gap="6" p="4">
+            {/* Title Section */}
             <Box>
-              <Button type="button" onClick={addOption} variant="soft">
-                + Add Option
+              <Text as="label" size="2" mb="2" weight="bold">
+                Poll Title
+              </Text>
+              <TextField.Root
+                size="3"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+                placeholder="What's your poll about?"
+              />
+            </Box>
+
+            {/* Description Section */}
+            <Box>
+              <Text as="label" size="2" mb="2" weight="bold">
+                Description
+              </Text>
+              <TextArea
+                size="3"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                placeholder="Provide more details about your poll"
+              />
+            </Box>
+
+            {/* Voting Format Section */}
+            <Flex direction="column" gap="2">
+              <Text as="label" size="2" mb="2" weight="bold">
+                Voting Format
+              </Text>
+              <Box>
+                <Select.Root
+                  value={votingFormat}
+                  onValueChange={(value: VotingFormat) =>
+                    setVotingFormat(value)
+                  }
+                >
+                  <Select.Trigger />
+                  <Select.Content>
+                    {Object.entries(VOTING_FORMAT_INFO).map(
+                      ([value, { label }]) => (
+                        <Select.Item key={value} value={value}>
+                          {label}
+                        </Select.Item>
+                      )
+                    )}
+                  </Select.Content>
+                </Select.Root>
+              </Box>
+              <Text size="1" color="gray" mt="1">
+                {VOTING_FORMAT_INFO[votingFormat].description}
+              </Text>
+            </Flex>
+
+            {/* Options Section */}
+            <Box>
+              <Text as="label" size="2" mb="2" weight="bold">
+                Options
+              </Text>
+              <Flex direction="column" gap="3">
+                {options.map((option, index) => (
+                  <Card key={index} variant="surface">
+                    <Flex direction="column" gap="3" p="3">
+                      <TextField.Root
+                        size="3"
+                        value={option.text}
+                        onChange={(e) =>
+                          updateOption(index, { text: e.target.value })
+                        }
+                        required
+                        placeholder={`Option ${index + 1}`}
+                      />
+
+                      <ImageUpload
+                        existingImageUrl={option.imageUrl}
+                        onImageUploaded={(url) =>
+                          updateOption(index, { imageUrl: url })
+                        }
+                      />
+
+                      {options.length > 2 && (
+                        <Button
+                          type="button"
+                          onClick={() => removeOption(index)}
+                          variant="soft"
+                          color="red"
+                          size="2"
+                        >
+                          Remove Option
+                        </Button>
+                      )}
+                    </Flex>
+                  </Card>
+                ))}
+
+                <Button
+                  type="button"
+                  onClick={addOption}
+                  variant="soft"
+                  size="2"
+                >
+                  + Add Option
+                </Button>
+              </Flex>
+            </Box>
+
+            {/* Submit Button */}
+            <Box>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                size="3"
+                style={{ width: "100%" }}
+              >
+                {isSubmitting ? "Creating Poll..." : "Create Poll"}
               </Button>
             </Box>
           </Flex>
-        </Flex>
-
-        <Box>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Creating Poll..." : "Create Poll"}
-          </Button>
-        </Box>
+        </Card>
       </form>
     </Box>
   );

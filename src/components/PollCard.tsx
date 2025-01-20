@@ -9,8 +9,9 @@ import {
   Progress,
 } from "@radix-ui/themes";
 import Link from "next/link";
+import Image from "next/image";
 import { formatDistanceToNow } from "date-fns";
-import { VotingFormat } from "@/components/CreatePollForm";
+import { VotingFormat } from "@/types/poll";
 import { Timestamp } from "firebase/firestore";
 
 interface BaseStats {
@@ -57,7 +58,7 @@ interface PollOption {
 
 interface RankedVote {
   userId: string;
-  rankings: number[];
+  rankings: Record<string, number>;
   timestamp: Timestamp;
 }
 
@@ -99,12 +100,12 @@ function OptionDisplay({ option, value, maxValue }: OptionDisplayProps) {
       <Flex justify="between" align="center" gap="2">
         <Flex gap="2" align="center" style={{ flex: 1 }}>
           {option.imageUrl && (
-            <img
+            <Image
               src={option.imageUrl}
               alt={option.text}
+              width={40}
+              height={40}
               style={{
-                width: "40px",
-                height: "40px",
                 objectFit: "cover",
                 borderRadius: "4px",
               }}
@@ -168,10 +169,10 @@ export function PollCard({
         if (rankedVotes.length === 0) return <Text size="2">No votes yet</Text>;
 
         const scores = options
-          .map((option, index) => {
+          .map((option) => {
             let score = 0;
-            rankedVotes.forEach((vote) => {
-              score += options.length - vote.rankings[index];
+            rankedVotes.forEach((vote: RankedVote) => {
+              score += options.length - vote.rankings[option.text];
             });
             return { text: option.text, score };
           })

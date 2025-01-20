@@ -2,7 +2,15 @@
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy, limit, getDocs } from "firebase/firestore";
-import { Box, Container, Flex, Grid, Heading, Text, Button } from "@radix-ui/themes";
+import {
+  Box,
+  Container,
+  Flex,
+  Grid,
+  Heading,
+  Text,
+  Button,
+} from "@radix-ui/themes";
 import { PollCard } from "@/components/PollCard";
 import Link from "next/link";
 import type { PollCardProps as Poll } from "@/components/PollCard";
@@ -50,10 +58,17 @@ export default function Home() {
 
   return (
     <Container>
-      <Box className="py-16">
+      <Flex direction="column" gap="4">
         {/* Hero Section */}
-        <Flex direction="column" align="center" gap="4" className="text-center mb-16">
-          <Heading size="9">Make Better Decisions Together</Heading>
+        <Flex
+          direction="column"
+          align="center"
+          gap="4"
+          style={{ textAlign: "center" }}
+        >
+          <Heading size="9">
+            The mind is not a vessel to be filled, but a fire to be kindled
+          </Heading>
           <Text size="5" color="gray">
             Create polls with multiple voting formats and get instant results
           </Text>
@@ -61,14 +76,14 @@ export default function Home() {
             <Button asChild size="4">
               <Link href="/create-poll">Create a Poll</Link>
             </Button>
-            <Button asChild size="4" variant="soft">
+            <Button asChild size="4" color="violet">
               <Link href="/polls">Browse All Polls</Link>
             </Button>
           </Flex>
         </Flex>
 
         {/* Trending Polls Section */}
-        <Box className="mt-16">
+        <Box>
           <Heading size="6" mb="6">
             Trending Polls
           </Heading>
@@ -82,7 +97,7 @@ export default function Home() {
             </Grid>
           )}
         </Box>
-      </Box>
+      </Flex>
     </Container>
   );
 }
