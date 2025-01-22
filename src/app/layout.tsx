@@ -23,10 +23,16 @@ export default function RootLayout({
   return (
     <html lang="en" className={quicksand.variable}>
       <body>
-        <Theme style={{ height: "100%" }}>
+        <Theme
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <Box
             style={{
-              height: "100%",
+              flex: 1,
               background: `linear-gradient(135deg, #a8edea, #fed6e3)`,
             }}
           >

@@ -17,8 +17,13 @@ function initializeParticipantStats(): PairwiseOptionStats {
   };
 }
 
-function initializeAnnotatorStats(): AnnotatorStats {
+function dynamicGamma(comparisons: number): number {
+  return Math.min(0.5, 0.1 + 0.05 * Math.log(comparisons + 1));
+}
+
+function initializeAnnotatorStats(annotatorId: string): AnnotatorStats {
   return {
+    id: annotatorId,
     reliability: 1, // Start with maximum reliability
     alpha: 1, // Beta distribution alpha parameter
     beta: 1, // Beta distribution beta parameter
@@ -26,16 +31,101 @@ function initializeAnnotatorStats(): AnnotatorStats {
   };
 }
 
-function updateAnnotatorQuality(
+function updateAnnotatorReliability(
   annotator: AnnotatorStats,
-  observed: boolean,
-  expected: boolean
+  winner: number,
+  loser: number,
+  globalStats: PairwiseStats["global"]
 ): void {
-  const agreement = observed === expected ? 1 : 0;
+  const winnerStats = globalStats.participants[winner];
+  const loserStats = globalStats.participants[loser];
 
-  // Update `alpha` and `beta` based on agreement or disagreement
-  annotator.alpha += agreement; // Increment alpha for agreements
-  annotator.beta += 1 - agreement; // Increment beta for disagreements
+  if (!winnerStats || !loserStats) return;
+
+  const expectedProb = 1 / (1 + Math.exp(loserStats.mu - winnerStats.mu));
+  const agreement = expectedProb > 0.5 ? 1 : 0;
+
+  annotator.alpha += agreement;
+  annotator.beta += 1 - agreement;
+  annotator.reliability = annotator.alpha / (annotator.alpha + annotator.beta);
+}
+
+function calculateInformationGain(
+  a: PairwiseOptionStats,
+  b: PairwiseOptionStats,
+  annotator: AnnotatorStats,
+  gamma: number
+): number {
+  // Probability of each outcome
+  const eta = annotator.alpha / (annotator.alpha + annotator.beta);
+  const probWinA =
+    eta * (1 / (1 + Math.exp(b.mu - a.mu))) +
+    (1 - eta) * (Math.exp(b.mu - a.mu) / (1 + Math.exp(b.mu - a.mu)));
+
+  const probLoseA = 1 - probWinA;
+
+  // Information gain for this pair and annotator
+  const infoGain =
+    probWinA * Math.log(probWinA / eta) +
+    probLoseA * Math.log(probLoseA / (1 - eta));
+
+  // Tradeoff between pair uncertainty and annotator exploration
+  return gamma * infoGain + (1 - gamma) * Math.abs(a.mu - b.mu);
+}
+
+export function getBestPair(
+  globalStats: PairwiseStats["global"],
+  annotator: AnnotatorStats,
+  globalHistory: Map<string, { count: number; annotators: Set<string> }>,
+  gamma: number
+): [number, number] | null {
+  const participantIds = Object.keys(globalStats.participants).map(Number);
+  const pairs: [number, number][] = [];
+  const pairScores: Map<string, number> = new Map();
+
+  participantIds.forEach((aId, i) => {
+    participantIds.slice(i + 1).forEach((bId) => {
+      const pairKey = `${Math.min(aId, bId)}-${Math.max(aId, bId)}`;
+      if (
+        globalHistory.has(pairKey) &&
+        globalHistory.get(pairKey)!.annotators.has(annotator.id)
+      ) {
+        return;
+      }
+
+      const aStats = globalStats.participants[aId];
+      const bStats = globalStats.participants[bId];
+
+      const score = calculateInformationGain(aStats, bStats, annotator, gamma);
+      pairs.push([aId, bId]);
+      pairScores.set(pairKey, score);
+    });
+  });
+
+  pairs.sort((pair1, pair2) => {
+    const score1 = pairScores.get(
+      `${Math.min(pair1[0], pair1[1])}-${Math.max(pair1[0], pair1[1])}`
+    )!;
+    const score2 = pairScores.get(
+      `${Math.min(pair2[0], pair2[1])}-${Math.max(pair2[0], pair2[1])}`
+    )!;
+    return score2 - score1;
+  });
+
+  // Weighted random sampling among top pairs
+  const topPairs = pairs.slice(0, 10);
+  const weights = topPairs.map(
+    ([a, b]) => pairScores.get(`${Math.min(a, b)}-${Math.max(a, b)}`) || 0
+  );
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  const rand = Math.random() * totalWeight;
+  let cumulativeWeight = 0;
+  for (let i = 0; i < topPairs.length; i++) {
+    cumulativeWeight += weights[i];
+    if (rand < cumulativeWeight) return topPairs[i];
+  }
+
+  return null;
 }
 
 export function processComparison(
@@ -46,50 +136,45 @@ export function processComparison(
   loserStats: PairwiseOptionStats;
   annotatorStats: AnnotatorStats;
 } {
-  const { winner, loser, annotator } = comparison;
+  const { winner, loser, annotator: annotatorId } = comparison;
 
-  // Initialize participant and annotator stats if not already present
   if (!globalStats.participants[winner]) {
     globalStats.participants[winner] = initializeParticipantStats();
   }
   if (!globalStats.participants[loser]) {
     globalStats.participants[loser] = initializeParticipantStats();
   }
-  if (!globalStats.annotators[annotator]) {
-    globalStats.annotators[annotator] = initializeAnnotatorStats();
+  if (!globalStats.annotators[annotatorId]) {
+    globalStats.annotators[annotatorId] = {
+      id: annotatorId,
+      reliability: 1,
+      alpha: 1,
+      beta: 1,
+      comparisons: [],
+    };
   }
 
   const winnerStats = globalStats.participants[winner];
   const loserStats = globalStats.participants[loser];
-  const annotatorStats = globalStats.annotators[annotator];
+  const annotatorStats = globalStats.annotators[annotatorId];
 
-  // Compute the probability using the Crowd-BT model
-  const eta =
-    annotatorStats.alpha / (annotatorStats.alpha + annotatorStats.beta);
-  const probability =
-    eta * (1 / (1 + Math.exp(loserStats.mu - winnerStats.mu))) +
-    (1 - eta) *
-      (Math.exp(loserStats.mu - winnerStats.mu) /
-        (1 + Math.exp(loserStats.mu - winnerStats.mu)));
+  updateAnnotatorReliability(annotatorStats, winner, loser, globalStats);
 
-  // Update scores based on the probability
-  const dynamicGamma = Math.min(0.1, 1 / (1 + winnerStats.comparisons));
-  const gradient = dynamicGamma * (1 - probability);
+  const weight = annotatorStats.reliability;
+  const probability = 1 / (1 + Math.exp(loserStats.mu - winnerStats.mu));
+  const gradient =
+    dynamicGamma(winnerStats.comparisons) * (1 - probability) * weight;
 
-  winnerStats.mu += gradient * (1 / winnerStats.beta);
-  loserStats.mu -= gradient * (1 / loserStats.beta);
+  winnerStats.mu += gradient / winnerStats.beta;
+  loserStats.mu -= gradient / loserStats.beta;
 
-  // Adjust beta to decrease uncertainty over time
   winnerStats.beta = Math.max(winnerStats.beta * 0.9, 0.1);
   loserStats.beta = Math.max(loserStats.beta * 0.9, 0.1);
 
-  // Update comparison and win counts
-  winnerStats.comparisons += 1;
-  loserStats.comparisons += 1;
-  winnerStats.wins += 1; // Increment wins for the winner
+  winnerStats.comparisons++;
+  loserStats.comparisons++;
+  winnerStats.wins++;
 
-  // Update annotator reliability
-  updateAnnotatorQuality(annotatorStats, probability > 0.5, true);
   annotatorStats.comparisons.push(comparison);
 
   return {
@@ -97,47 +182,6 @@ export function processComparison(
     loserStats,
     annotatorStats,
   };
-}
-
-export function getNextComparison(
-  participants: number[],
-  stats: PairwiseStats["global"],
-  annotatorComparisons: Comparison[]
-): [number, number] {
-  const participantScores = participants.map((id) => ({
-    id,
-    stats: stats.participants[id] || initializeParticipantStats(),
-  }));
-
-  let maxGain = -1;
-  let bestPair: [number, number] = [0, 1];
-
-  for (let i = 0; i < participants.length; i++) {
-    for (let j = i + 1; j < participants.length; j++) {
-      const a = participantScores[i];
-      const b = participantScores[j];
-
-      const uncertaintyFactor = Math.sqrt(
-        a.stats.beta ** 2 + b.stats.beta ** 2
-      );
-      const skillDiff = Math.abs(a.stats.mu - b.stats.mu);
-      const gain = uncertaintyFactor * Math.exp(-skillDiff / 2);
-
-      if (
-        gain > maxGain &&
-        !annotatorComparisons.some(
-          (c) =>
-            (c.winner === a.id && c.loser === b.id) ||
-            (c.winner === b.id && c.loser === a.id)
-        )
-      ) {
-        maxGain = gain;
-        bestPair = [a.id, b.id];
-      }
-    }
-  }
-
-  return bestPair;
 }
 
 export function getRankings(
@@ -160,7 +204,7 @@ export function reprocessComparisons(
     Object.assign(participant, initializeParticipantStats());
   });
   Object.values(globalStats.annotators).forEach((annotator) => {
-    Object.assign(annotator, initializeAnnotatorStats());
+    Object.assign(annotator, initializeAnnotatorStats(annotator.id));
   });
 
   // Reprocess each comparison in sequence

@@ -59,140 +59,126 @@ function createGlobalHistory(
   return globalHistory;
 }
 
-export function getNextPairwiseComparison(
-  optionCount: number,
-  userId: string,
-  history: PairwiseVote[],
-  scores: number[], // Current scores of options
-  prioritizeUncertain: boolean = true // Whether to prioritize pairs with close scores
-): [number, number] | null {
-  // Helper function to create a unique key for a pair
-  const getPairKey = (a: number, b: number) =>
-    `${Math.min(a, b)}-${Math.max(a, b)}`;
-
-  const globalHistory = createGlobalHistory(history);
-
-  // Generate all possible pairs
-  const availablePairs: [number, number][] = [];
-  for (let a = 0; a < optionCount - 1; a++) {
-    for (let b = a + 1; b < optionCount; b++) {
-      const key = getPairKey(a, b);
-      const entry = globalHistory.get(key);
-
-      // Check if the pair has been evaluated by the current annotator
-      if (!entry || !entry.userIds.has(userId)) {
-        availablePairs.push([a, b]);
-      }
-    }
-  }
-
-  // If no available pairs, indicate completion
-  if (availablePairs.length === 0) {
-    return null; // Signal that no pairs are available
-  }
-
-  // Sort pairs based on evaluation count (prioritize less evaluated pairs)
-  availablePairs.sort((pair1, pair2) => {
-    const count1 =
-      globalHistory.get(getPairKey(pair1[0], pair1[1]))?.count || 0;
-    const count2 =
-      globalHistory.get(getPairKey(pair2[0], pair2[1]))?.count || 0;
-    return count1 - count2; // Prioritize pairs with lower evaluation counts
-  });
-
-  // If prioritizing uncertainty, further refine sorting based on score closeness
-  if (prioritizeUncertain) {
-    availablePairs.sort((pair1, pair2) => {
-      const [a1, b1] = pair1;
-      const [a2, b2] = pair2;
-      return (
-        Math.abs(scores[a1] - scores[b1]) - Math.abs(scores[a2] - scores[b2])
-      );
-    });
-  }
-
-  // Return the next best pair
-  return availablePairs[0];
-}
-
-export function calculateIRVResults(
+export function calculateCoombsResults(
   rankings: RankedVote[],
   options: Array<{ text: string }>,
   winnersNeeded: number = 1
 ) {
-  if (!rankings.length) return [];
+  if (!rankings.length || !options.length || winnersNeeded <= 0) return [];
 
-  const eliminated: number[] = [];
-  const winners: Array<{ index: number; round: number; votes: number }> = [];
-  let round = 1;
+  const initialCounts = options.reduce((acc, option) => {
+    acc[option.text] = 0;
+    return acc;
+  }, {} as Record<string, number>);
 
-  // Create a map of option text to index
-  const optionToIndex = new Map(options.map((opt, index) => [opt.text, index]));
-
-  while (
-    winners.length < winnersNeeded &&
-    eliminated.length < options.length - 1
-  ) {
-    const voteCounts = new Map<number, number>();
-    for (let i = 0; i < options.length; i++) {
-      if (!eliminated.includes(i)) {
-        voteCounts.set(i, 0);
-      }
-    }
-
-    // Count first-choice votes for each option
-    rankings.forEach((vote) => {
-      const validRankings = Object.entries(vote.rankings)
-        .map(([text, rank]) => ({
-          index: optionToIndex.get(text) ?? -1,
-          rank,
-        }))
-        .filter(({ index }) => index !== -1 && !eliminated.includes(index))
-        .sort((a, b) => a.rank - b.rank);
-
-      if (validRankings.length > 0) {
-        const topChoice = validRankings[0];
-        voteCounts.set(
-          topChoice.index,
-          (voteCounts.get(topChoice.index) || 0) + 1
-        );
+  const tallyFirstChoiceVotes = (
+    votes: RankedVote[],
+    eliminated: Set<string>
+  ) => {
+    const counts = { ...initialCounts };
+    votes.forEach((vote) => {
+      // Find the highest ranked non-eliminated option
+      const firstChoice = Object.entries(vote.rankings)
+        .filter(([option]) => !eliminated.has(option))
+        .sort(([, rankA], [, rankB]) => rankA - rankB)[0];
+      if (firstChoice) {
+        const [option] = firstChoice;
+        counts[option] = (counts[option] || 0) + 1;
       }
     });
+    return counts;
+  };
 
-    const totalVotes = Array.from(voteCounts.values()).reduce(
-      (sum, count) => sum + count,
-      0
-    );
-    const majority = totalVotes / 2;
+  const tallyLastPlaceVotes = (
+    votes: RankedVote[],
+    eliminated: Set<string>
+  ) => {
+    const counts = { ...initialCounts };
+    votes.forEach((vote) => {
+      const validRankings = Object.entries(vote.rankings).filter(
+        ([option]) => !eliminated.has(option)
+      );
 
-    // Find winner or loser
-    const remainingVotes = Array.from(voteCounts.entries());
-    if (remainingVotes.length === 0) break;
+      if (validRankings.length === 0) return;
 
-    const maxVotes = Math.max(...remainingVotes.map(([, votes]) => votes));
-    const winner = remainingVotes.find(([, votes]) => votes === maxVotes);
+      // Find the lowest ranked (highest number) non-eliminated option
+      const lastPlace = validRankings.reduce((max, curr) =>
+        curr[1] > max[1] ? curr : max
+      );
 
-    if (maxVotes > majority || remainingVotes.length === 1) {
-      // We have a winner
-      if (winner) {
-        winners.push({
-          index: winner[0],
-          round,
-          votes: winner[1],
-        });
-        eliminated.push(winner[0]);
-      }
-    } else {
-      // Eliminate the option with the fewest votes
-      const minVotes = Math.min(...remainingVotes.map(([, votes]) => votes));
-      const losers = remainingVotes.filter(([, votes]) => votes === minVotes);
-      if (losers.length > 0) {
-        eliminated.push(losers[0][0]); // Eliminate one of the tied losers
-      }
+      counts[lastPlace[0]] = (counts[lastPlace[0]] || 0) + 1; // Initialize to 0 if undefined
+    });
+    return counts;
+  };
+
+  const redistributeVotes = (votes: RankedVote[], eliminated: Set<string>) => {
+    votes.forEach((vote) => {
+      const adjustedRankings: Record<string, number> = {};
+
+      // Filter out eliminated options and sort by original ranking
+      const validOptions = Object.entries(vote.rankings)
+        .filter(([option]) => !eliminated.has(option))
+        .sort(([, rankA], [, rankB]) => rankA - rankB);
+
+      // Reassign ranks starting from 0
+      validOptions.forEach(([option], index) => {
+        adjustedRankings[option] = index;
+      });
+
+      vote.rankings = adjustedRankings;
+    });
+  };
+
+  const eliminated = new Set<string>();
+  const winners: Array<{ index: number; votes: number }> = [];
+  let remainingOptions = options.length;
+
+  while (remainingOptions > winnersNeeded) {
+    // First check if we have a winner with majority
+    const firstChoiceCounts = tallyFirstChoiceVotes(rankings, eliminated);
+    const majorityThreshold = rankings.length / 2;
+
+    const potentialWinner = Object.entries(firstChoiceCounts)
+      .filter(([option]) => !eliminated.has(option))
+      .find(([, votes]) => votes > majorityThreshold);
+
+    if (potentialWinner) {
+      // We found a winner with majority
+      const [winnerOption, votes] = potentialWinner;
+      winners.push({
+        index: options.findIndex((opt) => opt.text === winnerOption),
+        votes: votes,
+      });
+      eliminated.add(winnerOption);
+      remainingOptions--;
+      continue;
     }
 
-    round++;
+    // No majority winner, eliminate the option with most last-place votes
+    const lastPlaceCounts = tallyLastPlaceVotes(rankings, eliminated);
+    const sortedLastPlace = Object.entries(lastPlaceCounts)
+      .filter(([option]) => !eliminated.has(option))
+      .sort((a, b) => b[1] - a[1]); // Sort by most last-place votes
+    if (sortedLastPlace.length === 0) break;
+
+    const [loserOption] = sortedLastPlace[0];
+    eliminated.add(loserOption);
+    remainingOptions--;
+    redistributeVotes(rankings, eliminated);
   }
 
-  return winners.slice(0, winnersNeeded);
+  // Add any remaining options as winners if needed
+  const finalCounts = tallyFirstChoiceVotes(rankings, eliminated);
+  Object.entries(finalCounts)
+    .filter(([option]) => !eliminated.has(option))
+    .sort((a, b) => b[1] - a[1]) // Sort by most votes
+    .slice(0, winnersNeeded - winners.length)
+    .forEach(([option, votes]) => {
+      winners.push({
+        index: options.findIndex((opt) => opt.text === option),
+        votes: votes || 0, // Ensure votes is not undefined
+      });
+    });
+
+  return winners;
 }

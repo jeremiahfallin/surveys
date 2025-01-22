@@ -60,6 +60,7 @@ export interface PairwiseOptionStats {
 }
 
 export interface AnnotatorStats {
+  id: string;
   reliability: number; // Annotator quality (η_k)
   comparisons: Comparison[]; // Total comparisons
   alpha: number;

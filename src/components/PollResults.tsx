@@ -2,7 +2,7 @@
 import { Box, Flex, Text, Select } from "@radix-ui/themes";
 import { Poll } from "@/types/poll";
 import { useState } from "react";
-import { calculateIRVResults } from "@/utils/voting";
+import { calculateCoombsResults } from "@/utils/voting";
 
 interface PollResultsProps {
   poll: Poll;
@@ -67,7 +67,7 @@ export function PollResults({ poll }: PollResultsProps) {
         if (!poll.rankedVotes?.length) return <Text>No votes yet</Text>;
 
         const totalVotes = poll.rankedVotes.length;
-        const winners = calculateIRVResults(
+        const winners = calculateCoombsResults(
           poll.rankedVotes,
           poll.options,
           winnersCount
@@ -102,13 +102,13 @@ export function PollResults({ poll }: PollResultsProps) {
                 const percentage = (winner.votes / totalVotes) * 100;
 
                 return (
-                  <Box key={winner.index}>
+                  <Box key={option.id}>
                     <Flex justify="between" mb="2">
                       <Text>
                         #{position + 1}: {option.text}
                       </Text>
                       <Text>
-                        Won in round {winner.round} with {winner.votes} vote
+                        Won with {winner.votes} vote
                         {winner.votes !== 1 ? "s" : ""} (
                         {Math.round(percentage)}
                         %)
@@ -196,7 +196,14 @@ export function PollResults({ poll }: PollResultsProps) {
                       <Text>• {option.comparisons} total</Text>
                     </Flex>
                   </Flex>
-                  {renderProgressBar(winRate)}
+
+                  {renderProgressBar(
+                    (100 *
+                      (option.rating +
+                        Math.abs(ratings[ratings.length - 1].rating))) /
+                      (ratings[0].rating +
+                        Math.abs(ratings[ratings.length - 1].rating))
+                  )}
                 </Box>
               );
             })}

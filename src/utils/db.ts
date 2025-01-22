@@ -13,7 +13,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { Poll } from "@/types/poll";
-import { getNextComparison, processComparison } from "./pairwise";
+import { getBestPair, processComparison } from "./pairwise";
 import { reprocessComparisons } from "@/utils/pairwise";
 
 export async function createPoll(poll: Omit<Poll, "id">) {
@@ -204,10 +204,29 @@ export async function submitPairwiseVote(
   }
 
   // Get next comparison
-  const nextPair = getNextComparison(
-    poll.options.map((opt, index) => index),
+  const historyMap = new Map<
+    string,
+    { count: number; annotators: Set<string> }
+  >();
+  history.forEach((vote) => {
+    const key = `${Math.min(vote.winner, vote.loser)}-${Math.max(
+      vote.winner,
+      vote.loser
+    )}`;
+    if (!historyMap.has(key)) {
+      historyMap.set(key, { count: 0, annotators: new Set() });
+    }
+    const entry = historyMap.get(key)!;
+    entry.count++;
+    entry.annotators.add(vote.userId);
+  });
+
+  const gamma = 0.1;
+  const nextPair = getBestPair(
     currentStats.global,
-    poll.pairwiseStats?.global.annotators[userId].comparisons || []
+    currentStats.global.annotators[userId],
+    historyMap,
+    gamma
   );
 
   // Update database

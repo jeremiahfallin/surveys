@@ -16,8 +16,8 @@ import { formatDistanceToNow } from "date-fns";
 import { VotingInterface } from "@/components/VotingInterface";
 import { PollResults } from "@/components/PollResults";
 import { Poll } from "@/types/poll";
-import { getNextPairwiseComparison } from "@/utils/voting";
 import { submitPairwiseVote } from "@/utils/db";
+import { getBestPair } from "@/utils/pairwise";
 
 function getAnonymousUserId(): string {
   const storageKey = "anonymous_user_id";
@@ -70,21 +70,45 @@ export default function PollPage({
           setRankings(new Array(data.options.length).fill(-1));
         } else if (data.votingFormat === "pairwise") {
           const history = pollData.pairwiseVotes || [];
-          const scores = pollData.pairwiseStats?.global.participants
-            ? Object.values(pollData.pairwiseStats.global.participants).map(
-                (stat) => {
-                  return stat.mu;
-                }
-              )
-            : Array(pollData.options.length).fill(0);
+
           const effectiveUserId = user?.uid || getAnonymousUserId();
-          const nextPair = getNextPairwiseComparison(
-            pollData.options.length,
-            effectiveUserId,
-            history,
-            scores
+
+          const historyMap = new Map<
+            string,
+            { count: number; annotators: Set<string> }
+          >();
+          history.forEach((vote) => {
+            const key = `${Math.min(vote.winner, vote.loser)}-${Math.max(
+              vote.winner,
+              vote.loser
+            )}`;
+            if (!historyMap.has(key)) {
+              historyMap.set(key, { count: 0, annotators: new Set() });
+            }
+            const entry = historyMap.get(key)!;
+            entry.count++;
+            entry.annotators.add(vote.userId);
+          });
+
+          const defaultAnnotatorStats = {
+            id: effectiveUserId,
+            reliability: 1,
+            comparisons: [],
+            alpha: 1,
+            beta: 1,
+          };
+          const gamma = 0.1; // Default uncertainty parameter
+          const bestPair = getBestPair(
+            pollData.pairwiseStats?.global || {
+              participants: {},
+              annotators: {},
+            },
+            pollData.pairwiseStats?.global?.annotators[effectiveUserId] ||
+              defaultAnnotatorStats,
+            historyMap,
+            gamma
           );
-          setCurrentComparison(nextPair);
+          setCurrentComparison(bestPair);
         }
       } catch (err) {
         console.error("Error fetching poll:", err);
