@@ -19,28 +19,6 @@ export function hasDuplicateRankings(rankings: number[]): boolean {
   return false;
 }
 
-function addComparisonToGlobalHistory(
-  globalHistory: Map<string, { userIds: Set<string>; count: number }>,
-  winner: number,
-  loser: number,
-  userId: string
-): void {
-  const key = `${Math.min(winner, loser)}-${Math.max(winner, loser)}`; // Ensure unique key regardless of order
-  if (!globalHistory.has(key)) {
-    globalHistory.set(key, { userIds: new Set(), count: 0 });
-  }
-
-  const entry = globalHistory.get(key)!;
-  entry.userIds.add(userId); // Track which user made the comparison
-  entry.count += 1; // Increment the count of evaluations
-}
-
-interface PairwiseVote {
-  winner: number;
-  loser: number;
-  userId: string;
-}
-
 export function calculateCoombsResults(
   rankings: RankedVote[],
   options: Array<{ text: string }>,
