@@ -41,24 +41,6 @@ interface PairwiseVote {
   userId: string;
 }
 
-function createGlobalHistory(
-  pairwiseVotes: PairwiseVote[]
-): Map<string, { userIds: Set<string>; count: number }> {
-  const globalHistory = new Map<
-    string,
-    { userIds: Set<string>; count: number }
-  >();
-  pairwiseVotes.forEach((vote) => {
-    addComparisonToGlobalHistory(
-      globalHistory,
-      vote.winner,
-      vote.loser,
-      vote.userId
-    );
-  });
-  return globalHistory;
-}
-
 export function calculateCoombsResults(
   rankings: RankedVote[],
   options: Array<{ text: string }>,
